@@ -1,0 +1,1539 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Dashboard – Saúde do Parque de Computadores</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <style>
+    :root{
+      /* Paleta escura (ajustada para corresponder ao v5) */
+      --bg-dark:#020617;
+      --card-dark:#0b1120;
+      --text-dark:#e5e7eb;
+      --muted-dark:#9ca3af;
+      --border-dark:#1e293b;
+
+      /* Paleta clara (mantida) */
+      --bg-light:#f4f6fb;
+      --card-light:#ffffff;
+      --text-light:#111827;
+      --muted-light:#6b7280;
+      --border-light:#e5e7eb;
+
+      /* Cores fixas (paleta do v5)
+         --accent é o laranja, --warn usa tom dourado usado no v5 */
+      --ok:#22c55e;
+      --warn:#eab308;
+      --crit:#ef4444;
+      --accent:#f97316;
+      /* cor de borda dos cards inspirada no v5 */
+      --card-border-accent: rgba(30,64,175,0.55);
+    }
+
+    html[data-theme="dark"]{
+      --bg:var(--bg-dark);
+      --card:var(--card-dark);
+      --text:var(--text-dark);
+      --muted:var(--muted-dark);
+      --border:var(--border-dark);
+    }
+    html[data-theme="light"]{
+      --bg:var(--bg-light);
+      --card:var(--card-light);
+      --text:var(--text-light);
+      --muted:var(--muted-light);
+      --border:var(--border-light);
+    }
+
+    *{
+      box-sizing:border-box;
+    }
+
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      line-height:1.4;
+      -webkit-font-smoothing: antialiased;
+      transition:background 0.25s ease,color 0.25s ease;
+    }
+
+    .layout{
+      padding:24px 20px 32px;
+      max-width:1320px;
+      margin:0 auto;
+    }
+
+    /* ===== HEADER ===== */
+    .header-bar{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:14px;
+      flex-wrap:wrap;
+    }
+    .header-left{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width:260px;
+    }
+    .header-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .header-title h1{
+      font-size:20px;
+      font-weight:600;
+      color:var(--text);
+      margin:0;
+    }
+    .std-chip{
+      background:var(--card);
+      color:var(--text);
+      border:1px solid var(--border);
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:11px;
+      white-space:nowrap;
+    }
+    .header-sub{
+      font-size:12px;
+      color:var(--muted);
+      max-width:520px;
+    }
+
+    .header-right{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-end;
+      min-width:260px;
+    }
+
+    .filters{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      justify-content:flex-end;
+    }
+    .filter{
+      background:var(--card);
+      border:1px solid var(--border);
+      color:var(--text);
+      padding:6px 10px;
+      border-radius:10px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      min-height:32px;
+    }
+    .filter span{
+      white-space:nowrap;
+      font-size:12px;
+    }
+    .filter select,
+    .filter input{
+      background:transparent;
+      color:var(--text);
+      border:none;
+      outline:none;
+      font-size:12px;
+    }
+    .filter input::placeholder{
+      color:var(--muted);
+    }
+
+    .theme-toggle{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:11px;
+      color:var(--muted);
+    }
+    .toggle-btn{
+      padding:5px 10px;
+      background:var(--card);
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:999px;
+      cursor:pointer;
+      font-size:12px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      transition:background .2s ease, transform .1s ease, box-shadow .2s ease;
+    }
+    .toggle-btn span.icon{
+      font-size:14px;
+    }
+    .toggle-btn:hover{
+      box-shadow:0 0 0 1px rgba(148,163,184,.4);
+      transform:translateY(-1px);
+    }
+
+    /* ===== RESUMO DE ATIVOS ===== */
+    .summary-card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      margin-bottom:14px;
+    }
+    .summary-title{
+      font-size:13px;
+      font-weight:600;
+      color:var(--text);
+      margin-bottom:6px;
+    }
+    .summary-grid{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      font-size:11px;
+      color:var(--muted);
+    }
+    .summary-item{
+      background:rgba(148,163,184,.06);
+      border-radius:999px;
+      padding:3px 9px;
+      white-space:nowrap;
+    }
+    .summary-item strong{
+      color:var(--text);
+      font-weight:600;
+      margin-left:2px;
+    }
+
+    /* ===== KPIs ===== */
+    .kpis{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:10px;
+      margin:12px 0 10px;
+    }
+    @media(max-width:1024px){
+      .kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    @media(max-width:640px){
+      .kpis{grid-template-columns:1fr;}
+    }
+    .kpi{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+      min-height:70px;
+    }
+    .kpi h3{
+      margin:0;
+      color:var(--muted);
+      font-size:12px;
+      font-weight:500;
+    }
+    .kpi .value{
+      font-size:22px;
+      color:var(--text);
+      font-weight:600;
+      line-height:1.1;
+    }
+    .kpi .trend{
+      font-size:11px;
+      color:var(--muted);
+      margin-top:2px;
+    }
+    .kpi.crit{box-shadow:0 0 0 1px var(--crit) inset;}
+    .kpi.warn{box-shadow:0 0 0 1px var(--warn) inset;}
+    .kpi.ok{box-shadow:0 0 0 1px var(--ok) inset;}
+
+    /* ===== GRÁFICOS ===== */
+    .charts-grid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:10px;
+      margin:6px 0 18px;
+    }
+    @media(max-width:1200px){
+      .charts-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    @media(max-width:640px){
+      .charts-grid{grid-template-columns:1fr;}
+    }
+    .chart-card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 10px 12px;
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-height:260px;
+    }
+    .chart-card h4{
+      margin:0;
+      font-size:13px;
+      color:var(--text);
+      font-weight:600;
+    }
+    .chart-caption{
+      font-size:11px;
+      color:var(--muted);
+    }
+    .chart-wrapper{
+      position:relative;
+      margin-top:4px;
+      height:260px;
+    }
+    .chart-wrapper canvas{
+      display:block;
+      width:100% !important;
+      height:100% !important;
+    }
+
+    /* ===== PAINEL PRINCIPAL ===== */
+    .panel{
+      display:grid;
+      grid-template-columns:minmax(0,1.15fr) minmax(0,0.85fr);
+      gap:10px;
+      align-items:flex-start;
+    }
+    @media(max-width:1024px){
+      .panel{grid-template-columns:1fr;}
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--card-border-accent);
+      border-radius:12px;
+      overflow:hidden;
+    }
+    .card-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      padding:10px 12px;
+      border-bottom:1px solid var(--border);
+      background: radial-gradient(circle at top left, rgba(30,64,175,0.45), transparent 60%), var(--card);
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .card-title{
+      color:var(--text);
+      font-size:13px;
+      font-weight:600;
+    }
+    .legend{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .legend span{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      color:var(--muted);
+      font-size:11px;
+      white-space:nowrap;
+    }
+    .dot{
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      display:inline-block;
+    }
+    .dot.ok{background:var(--ok);}
+    .dot.warn{background:var(--warn);}
+    .dot.crit{background:var(--crit);}
+
+    .priority-list{
+      max-height:460px;
+      overflow:auto;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 110px 150px minmax(0,1.4fr) 130px 150px;
+      gap:8px;
+      align-items:center;
+      padding:8px 12px;
+      border-bottom:1px solid var(--border);
+      font-size:12px;
+    }
+    @media(max-width:1024px){
+      .row{
+        grid-template-columns: 110px minmax(0,1fr);
+        grid-auto-rows:auto;
+        align-items:flex-start;
+      }
+    }
+    .row:hover{
+      background:rgba(148,163,184,0.08);
+    }
+
+    .sev{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      border-radius:999px;
+      padding:3px 9px;
+      font-size:11px;
+      font-weight:600;
+    }
+    .sev.crit{
+      background:rgba(239,68,68,.14);
+      color:#fecaca;
+      border:1px solid rgba(239,68,68,.4);
+    }
+    .sev.warn{
+      background:rgba(245,158,11,.12);
+      color:#fde68a;
+      border:1px solid rgba(245,158,11,.35);
+    }
+    .sev.ok{
+      background:rgba(34,197,94,.12);
+      color:#bbf7d0;
+      border:1px solid rgba(34,197,94,.35);
+    }
+
+    .chips{
+      display:flex;
+      flex-wrap:wrap;
+      gap:4px;
+    }
+    .chip{
+      background:var(--card);
+      border:1px solid var(--border);
+      color:var(--text);
+      border-radius:999px;
+      padding:2px 7px;
+      font-size:11px;
+      white-space:nowrap;
+    }
+
+    .action{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    @media(max-width:1024px){
+      .action{justify-content:flex-start;}
+    }
+    .btn{
+      background:var(--bg);
+      border:1px solid var(--border);
+      color:var(--text);
+      padding:4px 8px;
+      border-radius:9px;
+      font-size:11px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .btn.primary{
+      background:linear-gradient(180deg,#1e90ff,#0ea5e9);
+      border:none;
+      color:#f9fafb;
+    }
+    .btn:hover{
+      filter:brightness(1.05);
+    }
+
+    .mini{
+      padding:10px 12px 12px;
+    }
+    .stack{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:10px;
+    }
+    .metric{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      color:var(--text);
+      font-size:12px;
+      margin-bottom:2px;
+    }
+    .metric span:last-child{
+      font-variant-numeric:tabular-nums;
+    }
+    .meter{
+      height:7px;
+      border-radius:999px;
+      background:var(--bg);
+      border:1px solid var(--border);
+      overflow:hidden;
+    }
+    .meter>div{
+      height:100%;
+      transition:width .3s ease;
+    }
+    .meter.ok>div{background:var(--ok);}
+    .meter.warn>div{background:var(--warn);}
+    .meter.crit>div{background:var(--crit);}
+
+    /* ===== TABELAS ===== */
+    .table-wrap{
+      margin-top:4px;
+      max-height:300px;
+      overflow:auto;
+    }
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      color:var(--text);
+      font-size:12px;
+    }
+    thead th{
+      position:sticky;
+      top:0;
+      background:var(--card);
+      border-bottom:1px solid var(--border);
+      text-align:left;
+      padding:7px 8px;
+      font-size:11px;
+      font-weight:500;
+      z-index:1;
+      white-space:nowrap;
+    }
+    tbody td{
+      padding:6px 8px;
+      border-bottom:1px solid var(--border);
+      vertical-align:middle;
+    }
+    tr.flag-crit{background:rgba(239,68,68,.04);}
+    tr.flag-warn{background:rgba(245,158,11,.04);}
+    .flag-cell{
+      font-weight:600;
+      font-size:11px;
+      white-space:nowrap;
+    }
+    .flag-crit .flag-cell{color:#fecaca;}
+    .flag-warn .flag-cell{color:#fde68a;}
+    .flag-ok .flag-cell{color:#bbf7d0;}
+
+    .pill-ok{
+      color:#16a34a;
+      font-size:10px;
+      border-radius:999px;
+      border:1px solid rgba(22,163,74,.35);
+      padding:1px 6px;
+      background:rgba(22,163,74,.08);
+      white-space:nowrap;
+      display:inline-block;
+    }
+    .pill-alert{
+      color:#b45309;
+      font-size:10px;
+      border-radius:999px;
+      border:1px solid rgba(180,83,9,.35);
+      padding:1px 6px;
+      background:rgba(251,191,36,.1);
+      white-space:nowrap;
+      display:inline-block;
+    }
+    .pill-off{
+      color:#b91c1c;
+      font-size:10px;
+      border-radius:999px;
+      border:1px solid rgba(185,28,28,.35);
+      padding:1px 6px;
+      background:rgba(248,113,113,.08);
+      white-space:nowrap;
+      display:inline-block;
+    }
+
+    .inventory-card{
+      margin-top:12px;
+    }
+
+    @media(max-width:768px){
+      .layout{padding:18px 12px 24px;}
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <!-- HEADER -->
+  <div class="header-bar">
+    <div class="header-left">
+      <div class="header-title">
+        <h1>Saúde do Parque de Computadores</h1>
+        <span class="std-chip">Padrão: Win10/11 Pro · RAM ≥ 8GB · SSD · CPU ≥ i3 11ª</span>
+      </div>
+      <div class="header-sub">
+        Visão executiva para decidir rapidamente o que <strong>substituir</strong>, o que <strong>atualizar</strong> e o que já está <strong>em conformidade</strong>.
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="filters">
+        <div class="filter">
+          <span>Severidade</span>
+          <select id="fSev">
+            <option value="all">Todos</option>
+            <option value="crit">Crítico (Substituir)</option>
+            <option value="warn">Atenção (Upgrade)</option>
+            <option value="ok">OK (Conforme)</option>
+          </select>
+        </div>
+        <div class="filter">
+          <span>Setor</span>
+          <select id="fSetor"><option value="all">Todos</option></select>
+        </div>
+        <div class="filter">
+          <span>Busca</span>
+          <input id="fBusca" placeholder="Hostname, usuário, CPU..." />
+        </div>
+      </div>
+      <div class="theme-toggle">
+        <button id="themeToggle" class="toggle-btn">
+          <span class="icon">🌙</span>
+          <span id="themeLabel">Modo escuro</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RESUMO DE ATIVOS -->
+  <section class="summary-card">
+    <div class="summary-title">Resumo do inventário</div>
+    <div class="summary-grid">
+      <div class="summary-item">Total de ativos:<strong id="resTotal">0</strong></div>
+      <div class="summary-item">Computadores:<strong id="resComputadores">0</strong></div>
+      <div class="summary-item">Switches:<strong id="resSwitches">0</strong></div>
+      <div class="summary-item">Access Points:<strong id="resAps">0</strong></div>
+      <div class="summary-item">Impressoras:<strong id="resImpressoras">0</strong></div>
+      <div class="summary-item">Monitores:<strong id="resMonitores">0</strong></div>
+      <div class="summary-item">Nobreaks:<strong id="resNobreaks">0</strong></div>
+    </div>
+  </section>
+
+  <!-- KPIs HARDWARE -->
+  <section class="kpis" id="kpis">
+    <div class="kpi crit">
+      <h3>Substituir agora</h3>
+      <div class="value" id="kCrit">0</div>
+      <div class="trend">HDD, RAM baixa, CPU antiga</div>
+    </div>
+    <div class="kpi warn">
+      <h3>Precisa de upgrade</h3>
+      <div class="value" id="kWarn">0</div>
+      <div class="trend">RAM, SSD ou OS fora do ideal</div>
+    </div>
+    <div class="kpi ok">
+      <h3>Conformes</h3>
+      <div class="value" id="kOk">0</div>
+      <div class="trend">Equipamentos no padrão</div>
+    </div>
+    <div class="kpi">
+      <h3>Total de computadores</h3>
+      <div class="value" id="kTotal">0</div>
+      <div class="trend" id="kResumo">–</div>
+    </div>
+  </section>
+
+  <!-- KPIs LICENÇAS / SEGURANÇA -->
+  <section class="kpis" id="kpis-lic">
+    <div class="kpi">
+      <h3>Licenças Microsoft 365 em uso</h3>
+      <div class="value" id="kM365On">0</div>
+      <div class="trend" id="kM365Perc">–</div>
+    </div>
+    <div class="kpi">
+      <h3>Dispositivos protegidos com antivírus</h3>
+      <div class="value" id="kAVOn">0</div>
+      <div class="trend" id="kAVPerc">–</div>
+    </div>
+    <div class="kpi">
+      <h3>Sem licença Microsoft 365</h3>
+      <div class="value" id="kM365Off">0</div>
+      <div class="trend" id="kM365OffPerc">–</div>
+    </div>
+    <div class="kpi">
+      <h3>Sem proteção ativa</h3>
+      <div class="value" id="kAVOff">0</div>
+      <div class="trend" id="kAVOffPerc">–</div>
+    </div>
+  </section>
+
+  <!-- GRÁFICOS -->
+  <section class="charts-grid">
+    <div class="chart-card">
+      <h4>Status dos dispositivos</h4>
+      <div class="chart-caption">Distribuição entre Substituir, Upgrade e OK</div>
+      <div class="chart-wrapper">
+        <canvas id="chartSev"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h4>Memória RAM por faixa</h4>
+      <div class="chart-caption">Identificação rápida de falta de memória</div>
+      <div class="chart-wrapper">
+        <canvas id="chartRam"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h4>Licenciamento Microsoft 365</h4>
+      <div class="chart-caption">Dispositivos com e sem licença vinculada</div>
+      <div class="chart-wrapper">
+        <canvas id="chartM365"></canvas>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h4>Estado do Antivírus</h4>
+      <div class="chart-caption">Protegido × Vencido × Sem proteção</div>
+      <div class="chart-wrapper">
+        <canvas id="chartAV"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- PAINEL DETALHES -->
+  <section class="panel">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Prioridades (do pior para o melhor)</div>
+        <div class="legend">
+          <span><i class="dot crit"></i>Crítico</span>
+          <span><i class="dot warn"></i>Atenção</span>
+          <span><i class="dot ok"></i>OK</span>
+        </div>
+      </div>
+      <div class="priority-list" id="priorityList"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Pontos de ajuste por dimensão</div>
+      </div>
+      <div class="mini stack">
+        <div>
+          <div class="metric"><span>Memória RAM conforme</span><span id="mRam">0%</span></div>
+          <div class="meter" id="ramMeter"><div style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="metric"><span>Armazenamento SSD</span><span id="mSsd">0%</span></div>
+          <div class="meter" id="ssdMeter"><div style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="metric"><span>CPU em padrão</span><span id="mCpu">0%</span></div>
+          <div class="meter" id="cpuMeter"><div style="width:0%"></div></div>
+        </div>
+        <div>
+          <div class="metric"><span>Sistema Operacional Pro</span><span id="mOs">0%</span></div>
+          <div class="meter" id="osMeter"><div style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="table-wrap mini">
+        <table id="miniTable">
+          <thead>
+            <tr>
+              <th>Hostname</th>
+              <th>Flags</th>
+              <th>Ação sugerida</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- INVENTÁRIO DE COMPUTADORES -->
+  <div class="card inventory-card">
+    <div class="card-header">
+      <div class="card-title">Inventário de computadores</div>
+    </div>
+    <div class="table-wrap">
+      <table id="inventoryFull">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Hostname</th>
+            <th>Setor</th>
+            <th>Usuário</th>
+            <th>CPU</th>
+            <th>RAM</th>
+            <th>Disco</th>
+            <th>OS</th>
+            <th>Microsoft 365</th>
+            <th>Antivírus</th>
+            <th>Últ. login</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- INVENTÁRIO DE OUTROS ATIVOS -->
+  <div class="card inventory-card">
+    <div class="card-header">
+      <div class="card-title">Outros ativos de infraestrutura</div>
+    </div>
+    <div class="table-wrap">
+      <table id="inventoryInfra">
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Identificação</th>
+            <th>Setor / Local</th>
+            <th>Modelo</th>
+            <th>IP / Endereço</th>
+            <th>Observações</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const PADRAO = {
+    ramMin: 8,
+    cpuMinGeracaoIntel: 11,
+    aceitaSSD: true,
+    osAceitos: ["Windows 10 Pro","Windows 11 Pro","Windows 11","Windows 10"]
+  };
+
+  function isComputer(asset){
+    const tipo = (asset.tipo || '').toLowerCase();
+    if(!tipo) return true; // assume computador se não informado
+    return (
+      tipo.includes('desktop') ||
+      tipo.includes('notebook') ||
+      tipo.includes('laptop') ||
+      tipo.includes('all-in-one') ||
+      tipo.includes('workstation') ||
+      tipo.includes('thin')
+    );
+  }
+
+  function normalizaCpuGeracao(cpu){
+    if(cpu && typeof cpu.geracao === 'number') return cpu.geracao;
+    if(cpu && cpu.modelo){
+      const m = cpu.modelo.match(/\b(\d{2})\d{2}\b/);
+      if(m){ return parseInt(m[1],10); }
+    }
+    return 0;
+  }
+
+  function avaliaHost(h){
+    const flags = [];
+    let score = 100;
+
+    const ram = Number(h.ram_gb || 0);
+
+    const disco = h.disco || {};
+    const tipoDisco = (disco.tipo || "DESCONHECIDO").toUpperCase();
+
+    const cpuGen = normalizaCpuGeracao(h.cpu || {});
+    if(cpuGen && cpuGen < PADRAO.cpuMinGeracaoIntel){
+      flags.push("CPU < "+PADRAO.cpuMinGeracaoIntel+"ª");
+      score -= 35;
+    }else if(!cpuGen){
+      flags.push("CPU desconhecida");
+      score -= 10;
+    }
+
+    if(ram < PADRAO.ramMin){
+      flags.push("RAM < "+PADRAO.ramMin+"GB");
+      score -= 35;
+    }
+
+    if(PADRAO.aceitaSSD && tipoDisco !== 'SSD'){
+      flags.push("Sem SSD");
+      score -= 40;
+    }
+
+    const osInfo = h.os || {};
+    const osNome = (osInfo.nome || "") + " " + (osInfo.versao || "");
+    const okOs = PADRAO.osAceitos.some(function(v){
+      return osNome.toLowerCase().indexOf(v.toLowerCase()) !== -1;
+    });
+    if(!okOs){
+      flags.push("OS fora do padrão");
+      score -= 15;
+    }
+
+    const m365 = h.m365 || {};
+    if(m365 && m365.licensed === false){
+      flags.push("Sem licença Microsoft 365");
+      score -= 5;
+    }
+
+    const av = h.antivirus || {};
+    const statusAv = (av.status || "").toLowerCase();
+    if(statusAv && statusAv !== "ativo"){
+      flags.push("Antivírus não protegido");
+      score -= 10;
+    }
+
+    let sev = 'ok';
+    if(score < 50 || (flags.indexOf("Sem SSD") !== -1 && ram < 8)) {
+      sev = 'crit';
+    } else if(score < 75) {
+      sev = 'warn';
+    }
+
+    let acao = 'Conforme';
+    if(sev==='crit') {
+      acao = 'Substituir equipamento';
+    } else if(sev==='warn'){
+      const ups = [];
+      if(ram < 8) ups.push('Adicionar RAM para 8GB+');
+      if(tipoDisco !== 'SSD') ups.push('Trocar por SSD');
+      if(!okOs) ups.push('Atualizar para Windows Pro');
+      if(m365 && m365.licensed === false) ups.push('Habilitar licença Microsoft 365');
+      if(statusAv && statusAv !== "ativo") ups.push('Regularizar antivírus');
+      acao = ups.join(' · ') || 'Ajustes menores';
+    }
+
+    return { sev: sev, score: score, flags: flags, acao: acao };
+  }
+
+  const state = {
+    raw: [],
+    computers: [],
+    infra: [],
+    enriched: [],
+    filtros:{ sev:'all', setor:'all', busca:'' }
+  };
+
+  function sevRank(s){
+    if(s === 'crit') return 0;
+    if(s === 'warn') return 1;
+    if(s === 'ok') return 2;
+    return 3;
+  }
+
+  // ====== CHART.JS INSTÂNCIAS ======
+  let chartSev = null;
+  let chartRam = null;
+  let chartM365 = null;
+  let chartAV = null;
+
+  function createOrUpdateChart(instanceRef, ctx, config){
+    if(instanceRef && instanceRef.destroy){
+      instanceRef.destroy();
+    }
+    return new Chart(ctx, config);
+  }
+
+  // Helper para deixar os gráficos nítidos (HiDPI)
+  function getHiDPICtx(id){
+    const canvas = document.getElementById(id);
+    const dpr = window.devicePixelRatio || 1;
+
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    return ctx;
+  }
+
+  // Ingestão dos dados
+  window.ingestComputers = function(raw){
+    state.raw = Array.isArray(raw)? raw : [];
+
+    state.computers = state.raw.filter(isComputer);
+    state.infra = state.raw.filter(function(x){ return !isComputer(x); });
+
+    state.enriched = state.computers.map(function(r){
+      return Object.assign({}, r, { eval: avaliaHost(r) });
+    }).sort(function(a,b){
+      if(a.eval.sev === b.eval.sev){
+        return a.eval.score - b.eval.score;
+      }
+      return sevRank(a.eval.sev) - sevRank(b.eval.sev);
+    });
+
+    popularFiltros();
+    renderResumoAtivos();
+    renderTudo();
+  };
+
+  function popularFiltros(){
+    const set = {};
+    state.computers.forEach(function(x){
+      if(x.setor) set[x.setor] = true;
+    });
+    const setores = Object.keys(set).sort();
+    const sel = document.getElementById('fSetor');
+    let html = '<option value="all">Todos</option>';
+    setores.forEach(function(s){
+      html += '<option>'+s+'</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  // Resumo de ativos (card novo)
+  function renderResumoAtivos(){
+    const total = state.raw.length;
+    let computadores = 0, switches = 0, aps = 0, impressoras = 0, monitores = 0, nobreaks = 0;
+
+    state.raw.forEach(function(a){
+      const tipo = (a.tipo || '').toLowerCase();
+      if(isComputer(a)) computadores++;
+      else if(tipo.includes('switch')) switches++;
+      else if(tipo.includes('ap') || tipo.includes('access point')) aps++;
+      else if(tipo.includes('impress') || tipo.includes('printer')) impressoras++;
+      else if(tipo.includes('monitor')) monitores++;
+      else if(tipo.includes('nobreak') || tipo.includes('no-break') || tipo.includes('ups')) nobreaks++;
+    });
+
+    document.getElementById('resTotal').textContent = total;
+    document.getElementById('resComputadores').textContent = computadores;
+    document.getElementById('resSwitches').textContent = switches;
+    document.getElementById('resAps').textContent = aps;
+    document.getElementById('resImpressoras').textContent = impressoras;
+    document.getElementById('resMonitores').textContent = monitores;
+    document.getElementById('resNobreaks').textContent = nobreaks;
+  }
+
+  function filtrar(arr){
+    const sev = state.filtros.sev;
+    const setor = state.filtros.setor;
+    const busca = (state.filtros.busca || '').toLowerCase();
+
+    return arr.filter(function(x){
+      if(sev !== 'all' && x.eval.sev !== sev) return false;
+      if(setor !== 'all' && (x.setor || '') !== setor) return false;
+      if(busca){
+        const cpu = (x.cpu && x.cpu.modelo) ? x.cpu.modelo : '';
+        const osInfo = x.os || {};
+        const osNome = (osInfo.nome || '') + ' ' + (osInfo.versao || '');
+        const str = [
+          x.hostname || '',
+          x.usuario || '',
+          x.setor || '',
+          cpu,
+          osNome
+        ].join(' ').toLowerCase();
+        if(str.indexOf(busca) === -1) return false;
+      }
+      return true;
+    });
+  }
+
+  function renderTudo(){
+    const filt = filtrar(state.enriched);
+    renderKpis(filt);
+    renderLicencas();
+    renderPrioridades(filt);
+    renderMiniTable(filt);
+    renderMeters();
+    renderInventoryFull(filt);
+    renderInventoryInfra();
+    renderCharts(filt);
+  }
+
+  function renderKpis(arr){
+    const total = state.computers.length;
+    let crit = 0, warn = 0, ok = 0;
+    arr.forEach(function(x){
+      if(x.eval.sev === 'crit') crit++;
+      else if(x.eval.sev === 'warn') warn++;
+      else if(x.eval.sev === 'ok') ok++;
+    });
+
+    document.getElementById('kTotal').textContent = total;
+    document.getElementById('kCrit').textContent = crit;
+    document.getElementById('kWarn').textContent = warn;
+    document.getElementById('kOk').textContent = ok;
+    const percOk = total ? Math.round((ok/total)*100) : 0;
+    document.getElementById('kResumo').textContent = percOk + '% em conformidade';
+  }
+
+  function renderLicencas(){
+    const total = state.computers.length || 1;
+    let comM365 = 0, comAv = 0;
+    state.enriched.forEach(function(x){
+      const m365 = x.m365 || {};
+      if(m365.licensed !== false) comM365++;
+      const av = x.antivirus || {};
+      if((av.status || '').toLowerCase() === 'ativo') comAv++;
+    });
+    const semM365 = total - comM365;
+    const semAv = total - comAv;
+
+    const pM365 = Math.round((comM365/total)*100);
+    const pAv = Math.round((comAv/total)*100);
+    const pM365Off = 100 - pM365;
+    const pAvOff = 100 - pAv;
+
+    document.getElementById('kM365On').textContent = comM365;
+    document.getElementById('kAVOn').textContent = comAv;
+    document.getElementById('kM365Off').textContent = semM365;
+    document.getElementById('kAVOff').textContent = semAv;
+
+    document.getElementById('kM365Perc').textContent = pM365 + '% dos computadores com licença vinculada';
+    document.getElementById('kAVPerc').textContent = pAv + '% dos computadores protegidos';
+    document.getElementById('kM365OffPerc').textContent = pM365Off + '% sem licença Microsoft 365';
+    document.getElementById('kAVOffPerc').textContent = pAvOff + '% sem proteção ativa';
+  }
+
+  function sevBadge(sev){
+    if(sev === 'crit') return '<span class="sev crit">Crítico</span>';
+    if(sev === 'warn') return '<span class="sev warn">Atenção</span>';
+    return '<span class="sev ok">OK</span>';
+  }
+
+  function renderPrioridades(arr){
+    const root = document.getElementById('priorityList');
+    root.innerHTML = '';
+    arr.forEach(function(x){
+      const chips = x.eval.flags.map(function(f){
+        return '<span class="chip">'+f+'</span>';
+      }).join('');
+      const div = document.createElement('div');
+      div.className = 'row flag-'+x.eval.sev;
+      div.innerHTML =
+        '<div>'+sevBadge(x.eval.sev)+'</div>'+
+        '<div><strong>'+(x.hostname || '-')+'</strong></div>'+
+        '<div class="chips">'+(chips || '<span class="chip">Sem flags</span>')+'</div>'+
+        '<div>'+(x.setor || '-')+'</div>'+
+        '<div class="action">'+
+          '<button class="btn" onclick="verDetalhes(\''+(x.hostname || '')+'\')">Detalhes</button>'+
+          '<button class="btn primary" onclick="propostaRapida(\''+(x.hostname || '')+'\',\''+x.eval.sev+'\')">'+(x.eval.sev==='crit'?'Substituir':'Propor Upgrade')+'</button>'+
+        '</div>';
+      root.appendChild(div);
+    });
+  }
+
+  function renderMiniTable(arr){
+    const tb = document.querySelector('#miniTable tbody');
+    tb.innerHTML = '';
+    arr.slice(0,8).forEach(function(x){
+      const flagsHtml = x.eval.flags.map(function(f){
+        return "<span class='chip'>"+f+"</span>";
+      }).join(' ');
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+(x.hostname||'-')+'</td>'+
+        '<td>'+flagsHtml+'</td>'+
+        '<td>'+x.eval.acao+'</td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  function setMeter(elId, perc){
+    const el = document.getElementById(elId);
+    if(!el) return;
+    const bar = el.querySelector('div');
+    bar.style.width = perc + '%';
+    el.classList.remove('ok','warn','crit');
+    if(perc >= 80) el.classList.add('ok');
+    else if(perc >= 50) el.classList.add('warn');
+    else el.classList.add('crit');
+  }
+
+  function renderMeters(){
+    const total = state.computers.length || 1;
+    let okRam = 0, okSsd = 0, okCpu = 0, okOs = 0;
+
+    state.enriched.forEach(function(x){
+      const ram = Number(x.ram_gb || 0);
+      if(ram >= PADRAO.ramMin) okRam++;
+
+      const disco = x.disco || {};
+      const tipo = (disco.tipo || '').toUpperCase();
+      if(tipo === 'SSD') okSsd++;
+
+      const cpuGen = normalizaCpuGeracao(x.cpu || {});
+      if(cpuGen >= PADRAO.cpuMinGeracaoIntel) okCpu++;
+
+      const osInfo = x.os || {};
+      const osNome = (osInfo.nome || '') + ' ' + (osInfo.versao || '');
+      const matchOs = PADRAO.osAceitos.some(function(v){
+        return osNome.toLowerCase().indexOf(v.toLowerCase()) !== -1;
+      });
+      if(matchOs) okOs++;
+    });
+
+    const pRam = Math.round((okRam/total)*100);
+    const pSsd = Math.round((okSsd/total)*100);
+    const pCpu = Math.round((okCpu/total)*100);
+    const pOs  = Math.round((okOs/total)*100);
+
+    document.getElementById('mRam').textContent = pRam + '%';
+    document.getElementById('mSsd').textContent = pSsd + '%';
+    document.getElementById('mCpu').textContent = pCpu + '%';
+    document.getElementById('mOs').textContent  = pOs + '%';
+
+    setMeter('ramMeter', pRam);
+    setMeter('ssdMeter', pSsd);
+    setMeter('cpuMeter', pCpu);
+    setMeter('osMeter',  pOs);
+  }
+
+  function pillLicM365(m365){
+    if(!m365) return '<span class="pill-off">Sem info</span>';
+    if(m365.licensed === false) return '<span class="pill-off">Sem licença</span>';
+    const sku = m365.sku || "Licenciado";
+    return '<span class="pill-ok">'+sku+'</span>';
+  }
+
+  function pillAntivirus(av){
+    if(!av) return '<span class="pill-off">Sem info</span>';
+    const status = (av.status || '').toLowerCase();
+    if(status === 'ativo') return '<span class="pill-ok">'+(av.vendor || 'Protegido')+'</span>';
+    if(status === 'expirado' || status === 'vencido') return '<span class="pill-alert">Licença vencida</span>';
+    return '<span class="pill-off">Não protegido</span>';
+  }
+
+  function renderInventoryFull(arr){
+    const tb = document.querySelector('#inventoryFull tbody');
+    tb.innerHTML = '';
+    arr.forEach(function(x){
+      const cpu = x.cpu || {};
+      const disco = x.disco || {};
+      const osInfo = x.os || {};
+      const tr = document.createElement('tr');
+      tr.className = 'flag-' + x.eval.sev;
+      tr.innerHTML =
+        '<td>'+(x.tipo||'-')+'</td>'+
+        '<td><strong>'+(x.hostname||'-')+'</strong></td>'+
+        '<td>'+(x.setor||'-')+'</td>'+
+        '<td>'+(x.usuario||'-')+'</td>'+
+        '<td>'+(cpu.modelo||'-')+'</td>'+
+        '<td>'+(x.ram_gb||0)+' GB</td>'+
+        '<td>'+(disco.tipo||'-')+' '+(disco.tamanho_gb ? '('+disco.tamanho_gb+' GB)' : '')+'</td>'+
+        '<td>'+(osInfo.nome||'-')+' '+(osInfo.versao||'')+'</td>'+
+        '<td>'+pillLicM365(x.m365)+'</td>'+
+        '<td>'+pillAntivirus(x.antivirus)+'</td>'+
+        '<td>'+(x.ultimo_login||'-')+'</td>'+
+        '<td class="flag-cell">'+(x.eval.sev==='crit'?'Substituir':x.eval.sev==='warn'?'Upgrade':'OK')+'</td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  function renderInventoryInfra(){
+    const tb = document.querySelector('#inventoryInfra tbody');
+    tb.innerHTML = '';
+    state.infra.forEach(function(x){
+      const modelo = x.modelo || (x.cpu && x.cpu.modelo) || '-';
+      const ip = x.ip || x.endereco_ip || x.management_ip || '-';
+      const obs = x.obs || x.observacoes || '';
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+(x.tipo||'-')+'</td>'+
+        '<td><strong>'+(x.hostname || x.nome || '-')+'</strong></td>'+
+        '<td>'+(x.setor || x.local || '-')+'</td>'+
+        '<td>'+modelo+'</td>'+
+        '<td>'+ip+'</td>'+
+        '<td>'+obs+'</td>';
+      tb.appendChild(tr);
+    });
+  }
+
+  function verDetalhes(host){
+    alert('Abrir modal de detalhes para '+host+' (aqui você integra com o modal real).');
+  }
+
+  function propostaRapida(host, sev){
+    const titulo = sev==='crit'? 'Substituição' : 'Upgrade';
+    alert(titulo+' – Gerar proposta rápida para '+host);
+  }
+
+  document.getElementById('fSev').addEventListener('change', function(e){
+    state.filtros.sev = e.target.value;
+    renderTudo();
+  });
+  document.getElementById('fSetor').addEventListener('change', function(e){
+    state.filtros.setor = e.target.value;
+    renderTudo();
+  });
+  document.getElementById('fBusca').addEventListener('input', function(e){
+    state.filtros.busca = e.target.value;
+    renderTudo();
+  });
+
+  // Toggle de tema com persistência em localStorage
+  const themeToggleBtn = document.getElementById('themeToggle');
+  const themeLabel = document.getElementById('themeLabel');
+  const rootHtml = document.documentElement;
+
+  function aplicaTema(theme){
+    rootHtml.setAttribute('data-theme', theme);
+    if(theme === 'light'){
+      themeLabel.textContent = 'Modo claro';
+      themeToggleBtn.querySelector('.icon').textContent = '☀️';
+    } else {
+      themeLabel.textContent = 'Modo escuro';
+      themeToggleBtn.querySelector('.icon').textContent = '🌙';
+    }
+  }
+
+  const temaSalvo = localStorage.getItem('dashboardTheme') || 'dark';
+  aplicaTema(temaSalvo);
+
+  themeToggleBtn.addEventListener('click', function(){
+    const atual = rootHtml.getAttribute('data-theme') || 'dark';
+    const novo = atual === 'dark' ? 'light' : 'dark';
+    aplicaTema(novo);
+    localStorage.setItem('dashboardTheme', novo);
+  });
+
+  // ====== GRÁFICOS ======
+  function getTextColor(){
+    return getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e5e7eb';
+  }
+
+  function renderCharts(arr){
+    const total = state.computers.length || 1;
+
+    // Severidade
+    let crit = 0, warn = 0, ok = 0;
+    arr.forEach(function(x){
+      if(x.eval.sev === 'crit') crit++;
+      else if(x.eval.sev === 'warn') warn++;
+      else if(x.eval.sev === 'ok') ok++;
+    });
+
+    const ctxSev = getHiDPICtx('chartSev');
+    chartSev = createOrUpdateChart(chartSev, ctxSev, {
+      type:'doughnut',
+      data:{
+        labels:['Crítico','Atenção','OK'],
+        datasets:[{
+          data:[crit, warn, ok],
+          backgroundColor:['#ef4444','#f59e0b','#22c55e'],
+          borderWidth:0
+        }]
+      },
+      options:{
+        plugins:{
+          legend:{
+            display:true,
+            position:'bottom',
+            labels:{color:getTextColor(), font:{size:11}}
+          }
+        },
+        cutout:'60%'
+      }
+    });
+
+    // RAM por faixa – fontes mais nítidas
+    let faixas = { low:0, mid:0, high:0 };
+    state.computers.forEach(function(x){
+      const ram = Number(x.ram_gb || 0);
+      if(ram < 4) faixas.low++;
+      else if(ram < 8) faixas.mid++;
+      else faixas.high++;
+    });
+    const ctxRam = getHiDPICtx('chartRam');
+    chartRam = createOrUpdateChart(chartRam, ctxRam, {
+      type:'bar',
+      data:{
+        labels:['< 4GB','4–7GB','≥ 8GB'],
+        datasets:[{
+          label:'Qtd',
+          data:[faixas.low, faixas.mid, faixas.high],
+          backgroundColor:['#ef4444','#f59e0b','#22c55e']
+        }]
+      },
+      options:{
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{ticks:{color:getTextColor(), font:{size:12}}},
+          y:{ticks:{color:getTextColor(), font:{size:12}}, beginAtZero:true}
+        }
+      }
+    });
+
+    // M365
+    let comM365 = 0;
+    state.enriched.forEach(function(x){
+      const m365 = x.m365 || {};
+      if(m365.licensed !== false) comM365++;
+    });
+    const semM365 = total - comM365;
+    const ctxM = getHiDPICtx('chartM365');
+    chartM365 = createOrUpdateChart(chartM365, ctxM, {
+      type:'doughnut',
+      data:{
+        labels:['Com licença','Sem licença'],
+        datasets:[{
+          data:[comM365, semM365],
+          backgroundColor:['#38bdf8','#ef4444'],
+          borderWidth:0
+        }]
+      },
+      options:{
+        plugins:{
+          legend:{
+            display:true,
+            position:'bottom',
+            labels:{color:getTextColor(), font:{size:11}}
+          }
+        },
+        cutout:'58%'
+      }
+    });
+
+    // Antivírus
+    let avOk=0,avVenc=0,avNo=0;
+    state.enriched.forEach(function(x){
+      const av = x.antivirus || {};
+      const st = (av.status || '').toLowerCase();
+      if(st === 'ativo') avOk++;
+      else if(st === 'expirado' || st === 'vencido') avVenc++;
+      else avNo++;
+    });
+    const ctxAV = getHiDPICtx('chartAV');
+    chartAV = createOrUpdateChart(chartAV, ctxAV, {
+      type:'doughnut',
+      data:{
+        labels:['Protegido','Licença vencida','Sem proteção'],
+        datasets:[{
+          data:[avOk,avVenc,avNo],
+          backgroundColor:['#22c55e','#f59e0b','#ef4444'],
+          borderWidth:0
+        }]
+      },
+      options:{
+        plugins:{
+          legend:{
+            display:true,
+            position:'bottom',
+            labels:{color:getTextColor(), font:{size:11}}
+          }
+        },
+        cutout:'58%'
+      }
+    });
+  }
+
+  // MOCK DE TESTE – troque pelos dados reais depois
+  const __mock = [
+    {
+      tipo:'Desktop',
+      hostname:'FIN-PC-01',
+      setor:'Financeiro',
+      usuario:'Maria',
+      cpu:{modelo:'Intel Core i3-7100', geracao:7},
+      ram_gb:4,
+      disco:{tipo:'HDD', tamanho_gb:500},
+      os:{nome:'Windows', versao:'10 Home'},
+      m365:{licensed:false},
+      antivirus:{vendor:'Defender', status:'Ativo'},
+      ultimo_login:'2025-10-20'
+    },
+    {
+      tipo:'Notebook',
+      hostname:'ADM-NB-02',
+      setor:'Administrativo',
+      usuario:'João',
+      cpu:{modelo:'Intel Core i5-10210U', geracao:10},
+      ram_gb:8,
+      disco:{tipo:'HDD', tamanho_gb:1000},
+      os:{nome:'Windows', versao:'11 Pro'},
+      m365:{licensed:true, sku:'M365 Business Basic'},
+      antivirus:{vendor:'Defender', status:'Ativo'},
+      ultimo_login:'2025-10-21'
+    },
+    {
+      tipo:'Desktop',
+      hostname:'SUP-PC-03',
+      setor:'Suporte',
+      usuario:'Ana',
+      cpu:{modelo:'Intel Core i3-12100', geracao:12},
+      ram_gb:16,
+      disco:{tipo:'SSD', tamanho_gb:512},
+      os:{nome:'Windows', versao:'11 Pro'},
+      m365:{licensed:true, sku:'M365 Business Standard'},
+      antivirus:{vendor:'Defender', status:'Ativo'},
+      ultimo_login:'2025-10-25'
+    },
+    {
+      tipo:'Notebook',
+      hostname:'DIR-NB-01',
+      setor:'Diretoria',
+      usuario:'Josimar',
+      cpu:{modelo:'Intel Core i7-8750H', geracao:8},
+      ram_gb:16,
+      disco:{tipo:'SSD', tamanho_gb:512},
+      os:{nome:'Windows', versao:'10 Pro'},
+      m365:{licensed:true, sku:'M365 Business Premium'},
+      antivirus:{vendor:'Kaspersky', status:'Expirado'},
+      ultimo_login:'2025-10-24'
+    },
+    {
+      tipo:'Desktop',
+      hostname:'VEN-PC-04',
+      setor:'Vendas',
+      usuario:'Luiz',
+      cpu:{modelo:'Intel Core i3-10100', geracao:10},
+      ram_gb:4,
+      disco:{tipo:'SSD', tamanho_gb:240},
+      os:{nome:'Windows', versao:'10 Pro'},
+      m365:{licensed:false},
+      antivirus:{vendor:'-', status:'Sem proteção'},
+      ultimo_login:'2025-10-26'
+    },
+    /* Infraestrutura */
+    {
+      tipo:'Switch',
+      hostname:'SW-CORE-01',
+      setor:'Data Center',
+      modelo:'Cisco SG350-28',
+      ip:'10.0.0.1',
+      obs:'Core da rede'
+    },
+    {
+      tipo:'Access Point',
+      hostname:'AP-RECEP-01',
+      setor:'Recepção',
+      modelo:'Ubiquiti UAP-AC-LR',
+      ip:'10.0.10.21',
+      obs:'Wi-Fi área de recepção'
+    },
+    {
+      tipo:'Impressora',
+      hostname:'PRINT-FIN-01',
+      setor:'Financeiro',
+      modelo:'HP LaserJet 400',
+      ip:'10.0.20.15',
+      obs:'Uso compartilhado equipe financeira'
+    },
+    {
+      tipo:'Monitor',
+      hostname:'MON-DIR-01',
+      setor:'Diretoria',
+      modelo:'Dell 27" IPS',
+      obs:'Monitor secundário'
+    },
+    {
+      tipo:'Nobreak',
+      hostname:'UPS-DATACENTER-01',
+      setor:'Data Center',
+      modelo:'APC 3000VA',
+      obs:'Protege servidores principais'
+    }
+  ];
+
+  window.addEventListener('DOMContentLoaded', function(){
+    window.ingestComputers(__mock);
+  });
+</script>
+</body>
+</html>

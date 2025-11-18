@@ -1,0 +1,30 @@
+# Node dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment files (do not commit secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+
+# Backend node modules
+backend/node_modules/
+
+# Vite cache
+.vite/
+
+# Editor directories
+.vscode/
+
+# OS files
+.DS_Store
+
+# Logs
+logs/
+*.log
+
+# Dashboard example folder (do not commit)
+dashboard_helpcentral/

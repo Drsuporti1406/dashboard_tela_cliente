@@ -1,0 +1,1084 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>HELP CENTRAL – Relatório de Chamados</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Chart.js para os gráficos -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#020617;
+      --border:#1e293b;
+      --muted:#9ca3af;
+      --accent:#f97316;
+      --good:#22c55e;
+      --warn:#eab308;
+      --bad:#ef4444;
+    }
+
+    *{ box-sizing:border-box; }
+
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:radial-gradient(circle at top left,#111827 0,#020617 45%,#000 100%);
+      color:#e5e7eb;
+      font-size:14px;
+    }
+
+    .layout{
+      max-width:1360px;
+      margin:0 auto;
+      padding:24px 20px 40px;
+    }
+
+    /* HEADER */
+
+    .header-bar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:18px;
+      flex-wrap:wrap;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+
+    .logo-circle{
+      width:44px;
+      height:44px;
+      border-radius:14px;
+      background:radial-gradient(circle at 30% 20%,#fde68a,#ea580c);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:800;
+      color:#111827;
+      letter-spacing:.03em;
+      font-size:18px;
+      box-shadow:0 12px 30px rgba(0,0,0,.45);
+    }
+
+    .brand-text span:first-child{
+      display:block;
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:.20em;
+      color:#9ca3af;
+    }
+
+    .brand-text span:last-child{
+      display:block;
+      font-size:18px;
+      font-weight:600;
+      color:#f9fafb;
+    }
+
+    .header-right{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:8px;
+      flex:1;
+    }
+
+    @media(max-width:720px){
+      .header-bar{align-items:flex-start;}
+      .header-right{align-items:flex-start;}
+    }
+
+    .filters{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:flex-end;
+    }
+
+    .filter{
+      background:rgba(15,23,42,0.9);
+      border:1px solid var(--border);
+      border-radius:999px;
+      padding:6px 10px;
+      display:flex;
+      align-items:center;
+      gap:6px;
+      font-size:12px;
+      color:#e5e7eb;
+    }
+
+    .filter span{
+      white-space:nowrap;
+      color:#9ca3af;
+      font-size:12px;
+    }
+
+    .filter input,
+    .filter select{
+      background:transparent;
+      border:none;
+      outline:none;
+      color:#e5e7eb;
+      font-size:12px;
+    }
+
+    .badge-periodo{
+      font-size:12px;
+      color:#9ca3af;
+    }
+
+    .badge-periodo strong{
+      color:#e5e7eb;
+      font-weight:500;
+    }
+
+    /* CARDS GENÉRICOS */
+
+    .card{
+      background:linear-gradient(145deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98));
+      border-radius:18px;
+      border:1px solid rgba(30,64,175,0.55);
+      box-shadow:0 18px 50px rgba(15,23,42,0.75);
+      overflow:hidden;
+    }
+
+    .card-header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:10px 14px 8px;
+      border-bottom:1px solid rgba(15,23,42,0.9);
+      background:radial-gradient(circle at top left,rgba(30,64,175,0.5),transparent 60%);
+    }
+
+    .card-title{
+      font-size:12px;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      color:#e5e7eb;
+    }
+
+    .card-sub{
+      font-size:11px;
+      color:#9ca3af;
+      margin-top:2px;
+    }
+
+    .card-body{
+      padding:12px 14px 14px;
+      font-size:12px;
+    }
+
+    .legend{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .legend span{
+      display:flex;
+      align-items:center;
+      gap:5px;
+      font-size:11px;
+      color:#cbd5f5;
+    }
+
+    .legend-dot{
+      width:10px;
+      height:10px;
+      border-radius:999px;
+      background:var(--accent);
+    }
+
+    .chart-wrapper{
+      position:relative;
+      height:260px;
+    }
+
+    .chart-wrapper-sm{
+      position:relative;
+      height:200px;
+    }
+
+    /* 1ª LINHA – KPIs */
+
+    .kpis{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+      margin:18px 0 8px;
+    }
+
+    @media(max-width:1080px){
+      .kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+
+    @media(max-width:640px){
+      .kpis{grid-template-columns:1fr;}
+    }
+
+    .kpi{
+      position:relative;
+      overflow:hidden;
+      background:radial-gradient(circle at top left,#0b1120,#020617);
+      border-radius:18px;
+      border:1px solid rgba(148,163,184,.25);
+      padding:14px 16px;
+      display:grid;
+      grid-template-rows:auto auto auto;
+      row-gap:4px;
+      min-height:96px;
+    }
+
+    /* Neon-like inner border for KPI severity/status (v7-style) */
+    .kpi.good, .kpi.ok{ box-shadow: 0 0 0 1px rgba(34,197,94,0.6) inset; }
+    .kpi.mid, .kpi.warn{  box-shadow: 0 0 0 1px rgba(234,179,8,0.6) inset; }
+    .kpi.bad, .kpi.crit{ box-shadow: 0 0 0 1px rgba(239,68,68,0.6) inset; }
+
+    /* Optional subtle glow outside the card for stronger neon effect (tweak alpha as needed) */
+    .kpi.good.kpi-glow, .kpi.ok.kpi-glow{ box-shadow: 0 0 0 1px rgba(34,197,94,0.6) inset, 0 6px 20px rgba(34,197,94,0.06); }
+    .kpi.mid.kpi-glow,  .kpi.warn.kpi-glow{   box-shadow: 0 0 0 1px rgba(234,179,8,0.6) inset, 0 6px 20px rgba(234,179,8,0.06); }
+    .kpi.bad.kpi-glow,  .kpi.crit.kpi-glow{  box-shadow: 0 0 0 1px rgba(239,68,68,0.6) inset, 0 6px 20px rgba(239,68,68,0.06); }
+
+    .kpi::before{
+      content:"";
+      position:absolute;
+      inset:-40%;
+      opacity:0.08;
+      background:radial-gradient(circle at top right,#f97316,transparent 55%);
+      pointer-events:none;
+    }
+
+    .kpi h3{
+      margin:0;
+      font-size:11px;
+      font-weight:600;
+      color:#9ca3af;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+
+    .kpi-main{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:8px;
+      z-index:1;
+    }
+
+    .kpi-value{
+      font-size:24px;
+      font-weight:700;
+      color:#f9fafb;
+    }
+
+    .kpi-suffix{
+      font-size:12px;
+      color:#9ca3af;
+      margin-left:2px;
+    }
+
+    .kpi-chip{
+      font-size:11px;
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.5);
+      color:#e5e7eb;
+      background:rgba(15,23,42,0.8);
+      white-space:nowrap;
+    }
+
+    .kpi-footer{
+      font-size:11px;
+      color:#6b7280;
+      min-height:30px;
+      display:flex;
+      align-items:flex-start;
+    }
+
+    .kpi-nps .kpi-chip{
+      border-color:rgba(249,115,22,.6);
+      background:rgba(249,115,22,0.12);
+      color:#fed7aa;
+    }
+
+    /* 2ª LINHA – 4 CARDS */
+
+    .cards-grid-small{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:10px;
+      margin-top:14px;
+    }
+
+    @media(max-width:1080px){
+      .cards-grid-small{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+
+    @media(max-width:640px){
+      .cards-grid-small{grid-template-columns:1fr;}
+    }
+
+    .cards-grid-small .card{
+      min-height:320px;
+      display:flex;
+      flex-direction:column;
+    }
+
+    .cards-grid-small .card-body{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+
+    /* TABELA DE TICKETS */
+
+    .tickets-card{
+      margin-top:20px;
+    }
+
+    .table-wrap{
+      max-height:340px;
+      overflow:auto;
+    }
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      color:#e5e7eb;
+      font-size:12px;
+    }
+
+    thead th{
+      position:sticky;
+      top:0;
+      z-index:1;
+      background:#020617;
+      border-bottom:1px solid rgba(30,64,175,0.6);
+      padding:7px 9px;
+      text-align:left;
+      font-weight:500;
+      color:#9ca3af;
+      white-space:nowrap;
+    }
+
+    tbody tr{
+      cursor:pointer;
+      transition:background .15s ease;
+    }
+
+    tbody tr:nth-child(even){background:rgba(15,23,42,0.7);}
+    tbody tr:nth-child(odd){background:rgba(15,23,42,0.45);}
+
+    tbody tr:hover{
+      background:rgba(30,64,175,0.9);
+    }
+
+    td{
+      padding:7px 9px;
+      border-bottom:1px solid rgba(15,23,42,0.9);
+      font-size:12px;
+    }
+
+    .ticket-id{
+      font-weight:600;
+      color:#e5e7eb;
+    }
+
+    .ticket-title{
+      color:#e5e7eb;
+    }
+
+    .pill-score{
+      font-size:11px;
+      padding:2px 6px;
+      border-radius:999px;
+      border:1px solid rgba(148,163,184,.45);
+      display:inline-block;
+      min-width:30px;
+      text-align:center;
+    }
+
+    .pill-score.good{
+      border-color:rgba(34,197,94,.6);
+      color:#bbf7d0;
+      background:rgba(22,163,74,0.18);
+    }
+
+    .pill-score.mid{
+      border-color:rgba(234,179,8,.6);
+      color:#fef9c3;
+      background:rgba(234,179,8,0.16);
+    }
+
+    .pill-score.bad{
+      border-color:rgba(239,68,68,.7);
+      color:#fecaca;
+      background:rgba(239,68,68,0.18);
+    }
+
+    .tag{
+      font-size:11px;
+      padding:2px 7px;
+      border-radius:999px;
+      background:rgba(15,23,42,0.9);
+      border:1px solid rgba(30,64,175,0.7);
+      color:#c7d2fe;
+      display:inline-block;
+    }
+
+    .scroll-hint{
+      font-size:11px;
+      color:#6b7280;
+      margin-top:4px;
+      text-align:right;
+    }
+  </style>
+</head>
+<body>
+<div class="layout">
+  <!-- TOPO -->
+  <header class="header-bar">
+    <div class="brand">
+      <div class="logo-circle">DR</div>
+      <div class="brand-text">
+        <span>DRSUPORTI · HELP CENTRAL</span>
+        <span>Relatório de Chamados</span>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="filters">
+        <div class="filter">
+          <span>Período</span>
+          <input type="date" id="fDataInicio">
+          <span>até</span>
+          <input type="date" id="fDataFim">
+        </div>
+        <div class="filter">
+          <span>Cliente</span>
+          <select id="fCliente">
+            <option value="all">Todos</option>
+          </select>
+        </div>
+        <div class="filter">
+          <span>Unidade</span>
+          <select id="fUnidade">
+            <option value="all">Todas</option>
+          </select>
+        </div>
+      </div>
+      <div class="badge-periodo" id="periodoTexto"></div>
+    </div>
+  </header>
+
+  <!-- 1ª LINHA – KPIs -->
+    <section class="kpis">
+    <article class="kpi ok">
+      <h3>TME – Tempo Médio de Espera</h3>
+      <div class="kpi-main">
+        <div>
+          <span class="kpi-value" id="kTME">0</span>
+          <span class="kpi-suffix">min</span>
+        </div>
+        <span class="kpi-chip" id="kTMEInfo">–</span>
+      </div>
+      <div class="kpi-footer">Média até o início do atendimento.</div>
+    </article>
+
+    <article class="kpi ok">
+      <h3>TMA – Tempo Médio de Atendimento</h3>
+      <div class="kpi-main">
+        <div>
+          <span class="kpi-value" id="kTMA">0</span>
+          <span class="kpi-suffix">min</span>
+        </div>
+        <span class="kpi-chip" id="kTMAInfo">–</span>
+      </div>
+      <div class="kpi-footer">Tempo médio de resolução.</div>
+    </article>
+
+    <article class="kpi mid kpi-glow kpi-nps">
+      <h3>NPS – Satisfação</h3>
+      <div class="kpi-main">
+        <div>
+          <span class="kpi-value" id="kNPS">0</span>
+          <span class="kpi-suffix">pts</span>
+        </div>
+        <span class="kpi-chip" id="kNPSLabel">Neutro</span>
+      </div>
+      <div class="kpi-footer">Baseado apenas em chamados encerrados.</div>
+    </article>
+
+    <article class="kpi ok">
+      <h3>Total de Chamados</h3>
+      <div class="kpi-main">
+        <div>
+          <span class="kpi-value" id="kTotal">0</span>
+        </div>
+        <span class="kpi-chip" id="kEncerradosInfo">–</span>
+      </div>
+      <div class="kpi-footer">Lista abaixo mostra só os encerrados.</div>
+    </article>
+  </section>
+
+  <!-- 2ª LINHA – 4 CARDS -->
+  <section class="cards-grid-small">
+    <article class="card">
+      <header class="card-header">
+        <div>
+          <div class="card-title">Tickets por Categoria</div>
+          <div class="card-sub">Principais naturezas de atendimento</div>
+        </div>
+      </header>
+      <div class="card-body">
+        <div class="chart-wrapper-sm">
+          <canvas id="chartCategoria"></canvas>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <header class="card-header">
+        <div>
+          <div class="card-title">Tickets por Unidade</div>
+          <div class="card-sub">Matriz x Filiais</div>
+        </div>
+      </header>
+      <div class="card-body">
+        <div class="chart-wrapper-sm">
+          <canvas id="chartUnidade"></canvas>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <header class="card-header">
+        <div>
+          <div class="card-title">Tickets por Requerente</div>
+          <div class="card-sub">Usuários que mais abrem chamados</div>
+        </div>
+      </header>
+      <div class="card-body">
+        <div class="chart-wrapper-sm">
+          <canvas id="chartUsuario"></canvas>
+        </div>
+      </div>
+    </article>
+
+    <article class="card">
+      <header class="card-header">
+        <div>
+          <div class="card-title">Resumo de NPS</div>
+          <div class="card-sub">Promotores, neutros, detratores</div>
+        </div>
+      </header>
+      <div class="card-body">
+        <div class="chart-wrapper-sm">
+          <canvas id="chartNPS"></canvas>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- 3ª LINHA – VOLUME DE CHAMADOS -->
+  <section style="margin-top:20px;">
+    <article class="card">
+      <header class="card-header">
+        <div>
+          <div class="card-title">Volume de Chamados</div>
+          <div class="card-sub">Evolução diária (últimos 90 dias)</div>
+        </div>
+        <div class="legend">
+  <span><span class="legend-dot" style="background:#f97316"></span>Mês atual</span>
+  <span><span class="legend-dot" style="background:#3b82f6"></span>Mês anterior</span>
+  <span><span class="legend-dot" style="background:#22c55e"></span>Há 2 meses</span>
+</div>
+
+      </header>
+      <div class="card-body">
+        <div class="chart-wrapper">
+          <canvas id="chartLinha"></canvas>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <!-- LISTA DE CHAMADOS ENCERRADOS -->
+  <section class="card tickets-card">
+    <header class="card-header">
+      <div>
+        <div class="card-title">Chamados Encerrados – Detalhamento</div>
+        <div class="card-sub">Clique para abrir no HELP CENTRAL</div>
+      </div>
+      <div class="tag" id="tagQtdEncerrados">0 chamados encerrados</div>
+    </header>
+    <div class="card-body">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th># Chamado</th>
+              <th>Data</th>
+              <th>Cliente</th>
+              <th>Requerente</th>
+              <th>Título</th>
+              <th>TME (min)</th>
+              <th>TMA (min)</th>
+              <th>Nota</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyTickets"></tbody>
+        </table>
+      </div>
+      <div class="scroll-hint">Role para ver mais registros.</div>
+    </div>
+  </section>
+</div>
+
+<script>
+  // ------- DADOS MOCK (exemplo) -------
+
+  function diasAtras(n){
+    var d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString();
+  }
+
+  var ticketsMock = [
+    {id:"HC-1023",dataRegistro:diasAtras(5),cliente:"Clínica Bem Viver",unidadeNegocio:"Matriz",requerente:"Ana Paula",titulo:"Erro no prontuário eletrônico",categoria:"Sistema Clínico",tmeMin:8,tmaMin:32,notaNps:10,status:"Encerrado"},
+    {id:"HC-1024",dataRegistro:diasAtras(15),cliente:"Clínica Bem Viver",unidadeNegocio:"Filial 01",requerente:"Carlos Lima",titulo:"Lentidão na internet",categoria:"Rede/Conectividade",tmeMin:15,tmaMin:55,notaNps:6,status:"Encerrado"},
+    {id:"HC-1025",dataRegistro:diasAtras(35),cliente:"Hospital Cantinho Doce",unidadeNegocio:"Matriz",requerente:"Fernanda Souza",titulo:"Impressora não imprime",categoria:"Periféricos",tmeMin:12,tmaMin:40,notaNps:8,status:"Encerrado"},
+    {id:"HC-1026",dataRegistro:diasAtras(65),cliente:"Hospital Cantinho Doce",unidadeNegocio:"UTI",requerente:"Dr. João",titulo:"Acesso remoto indisponível",categoria:"Acesso Remoto",tmeMin:5,tmaMin:25,notaNps:9,status:"Encerrado"},
+    {id:"HC-1027",dataRegistro:diasAtras(10),cliente:"Rede Bem Família",unidadeNegocio:"Filial São Luís",requerente:"Patrícia",titulo:"Atualização de antivírus falhou",categoria:"Segurança/Antivírus",tmeMin:20,tmaMin:60,notaNps:4,status:"Encerrado"},
+    {id:"HC-1028",dataRegistro:diasAtras(2),cliente:"Rede Bem Família",unidadeNegocio:"Filial São José",requerente:"Mariana",titulo:"Sem acesso ao e-mail",categoria:"Microsoft 365",tmeMin:6,tmaMin:18,notaNps:9,status:"Em andamento"},
+    {id:"HC-1029",dataRegistro:diasAtras(80),cliente:"Fecomércio-MA",unidadeNegocio:"TI",requerente:"Henrique",titulo:"VPN intermitente",categoria:"Rede/Conectividade",tmeMin:18,tmaMin:70,notaNps:7,status:"Encerrado"}
+  ];
+
+  // ------- HELPERS -------
+
+  function parseDate(str){
+    return str ? new Date(str) : null;
+  }
+
+  function formatDate(d){
+    if(!(d instanceof Date)) d = parseDate(d);
+    if(!d) return "-";
+    return d.toLocaleDateString("pt-BR");
+  }
+
+  function avg(arr){
+    var nums = arr.filter(function(n){ return typeof n === "number" && !isNaN(n); });
+    if(!nums.length) return 0;
+    var s = 0;
+    for(var i=0;i<nums.length;i++){ s += nums[i]; }
+    return s / nums.length;
+  }
+
+  function within(date, start, end){
+    if(!date) return false;
+    if(start && date < start) return false;
+    if(end && date > end) return false;
+    return true;
+  }
+
+  function classificaNps(nota){
+    if(nota >= 9) return "promotor";
+    if(nota >= 7) return "neutro";
+    return "detrator";
+  }
+
+  function npsScore(notas){
+    var arr = notas.filter(function(n){ return typeof n === "number" && !isNaN(n); });
+    if(!arr.length) return 0;
+    var prom=0, det=0;
+    arr.forEach(function(n){
+      var t = classificaNps(n);
+      if(t === "promotor") prom++;
+      else if(t === "detrator") det++;
+    });
+    var total = arr.length;
+    return Math.round(((prom/total)-(det/total))*100);
+  }
+
+  function npsLabel(score){
+    if(score >= 75) return {label:"Excelente", cls:"good"};
+    if(score >= 30) return {label:"Bom", cls:"good"};
+    if(score >= 0)  return {label:"Neutro", cls:"mid"};
+    if(score >= -30)return {label:"Crítico", cls:"bad"};
+    return {label:"Muito crítico", cls:"bad"};
+  }
+
+  function scorePillClass(nota){
+    if(nota >= 9) return "good";
+    if(nota >= 7) return "mid";
+    return "bad";
+  }
+
+  // Agrupa e conta
+  function groupCount(tickets, key){
+    var map = {};
+    tickets.forEach(function(t){
+      var k = t[key] || "Não informado";
+      map[k] = (map[k] || 0) + 1;
+    });
+    var out = [];
+    for(var k in map){
+      out.push([k,map[k]]);
+    }
+    return out;
+  }
+
+  // ------- RENDER -------
+
+  var state = {
+    allTickets: [],
+    filtered: [],
+    charts:{}
+  };
+
+  function ensureChart(id, config){
+    if(typeof Chart === "undefined"){
+      console.warn("Chart.js não carregado.");
+      return;
+    }
+    if(state.charts[id]){
+      state.charts[id].destroy();
+    }
+    var ctx = document.getElementById(id);
+    if(!ctx) return;
+    state.charts[id] = new Chart(ctx, config);
+  }
+
+  function renderDashboard(){
+    var tickets = state.filtered;
+    var total = tickets.length;
+    var tme = avg(tickets.map(function(t){ return t.tmeMin; }));
+    var tma = avg(tickets.map(function(t){ return t.tmaMin; }));
+    var encerrados = tickets.filter(function(t){
+      return (t.status || "").toLowerCase() === "encerrado";
+    });
+    var notas = encerrados.map(function(t){ return t.notaNps; });
+    var score = npsScore(notas);
+    var npsInfo = npsLabel(score);
+
+    document.getElementById("kTME").textContent = tme.toFixed(1);
+    document.getElementById("kTMA").textContent = tma.toFixed(1);
+    document.getElementById("kTotal").textContent = total;
+    document.getElementById("kNPS").textContent = score;
+
+    document.getElementById("kTMEInfo").textContent = total ? "Base " + total + " chamados" : "Sem dados";
+    document.getElementById("kTMAInfo").textContent = total ? "Base " + total + " chamados" : "Sem dados";
+
+    var kEnc = document.getElementById("kEncerradosInfo");
+    kEnc.textContent = encerrados.length + " encerrados no período";
+
+    var kNPSLabelEl = document.getElementById("kNPSLabel");
+    kNPSLabelEl.textContent = npsInfo.label;
+    kNPSLabelEl.className = "kpi-chip pill-nps " + npsInfo.cls;
+
+    document.getElementById("tagQtdEncerrados").textContent =
+      encerrados.length + " chamados encerrados";
+
+    renderChartLinha(tickets);
+    renderChartCategoria(tickets);
+    renderChartUnidade(tickets);
+    renderChartUsuario(tickets);
+    renderChartNPS(encerrados);
+
+    renderTabela(encerrados);
+  }
+
+  function renderChartLinha(tickets){
+    var today = new Date();
+    var past = new Date();
+    past.setDate(today.getDate()-90);
+
+    var counts = {};
+    tickets.forEach(function(t){
+      var d = parseDate(t.dataRegistro);
+      if(!within(d,past,today)) return;
+      var key = d.toISOString().slice(0,10);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    var labels = Object.keys(counts).sort();
+    var data = labels.map(function(l){ return counts[l]; });
+
+    ensureChart("chartLinha", {
+      type:"line",
+      data:{
+        labels:labels,
+        datasets:[{
+          label:"Chamados por dia",
+          data:data,
+          tension:0.35,
+          borderColor:"#f97316",
+          backgroundColor:"rgba(249,115,22,0.25)",
+          fill:true,
+          pointRadius:3,
+          pointBackgroundColor:"#fed7aa"
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{
+          x:{
+            ticks:{color:"#9ca3af"},
+            grid:{color:"rgba(30,64,175,0.3)"}
+          },
+          y:{
+            beginAtZero:true,
+            ticks:{color:"#9ca3af"},
+            grid:{color:"rgba(30,64,175,0.25)"}
+          }
+        },
+        plugins:{
+          legend:{display:false}
+        }
+      }
+    });
+  }
+
+  function renderChartCategoria(tickets){
+    var pairs = groupCount(tickets,"categoria");
+    var labels = pairs.map(function(p){ return p[0]; });
+    var data = pairs.map(function(p){ return p[1]; });
+
+    ensureChart("chartCategoria", {
+      type:"doughnut",
+      data:{
+        labels:labels,
+        datasets:[{
+          data:data,
+          backgroundColor:["#f97316","#22c55e","#3b82f6","#eab308","#ec4899","#8b5cf6"],
+          borderColor:"#020617",
+          borderWidth:1
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+          legend:{position:"bottom",labels:{color:"#cbd5f5",padding:10,font:{size:11}}}
+        },
+        cutout:"58%"
+      }
+    });
+  }
+
+  function renderChartUnidade(tickets){
+    var pairs = groupCount(tickets,"unidadeNegocio");
+    var labels = pairs.map(function(p){ return p[0]; });
+    var data = pairs.map(function(p){ return p[1]; });
+
+    ensureChart("chartUnidade", {
+      type:"bar",
+      data:{
+        labels:labels,
+        datasets:[{
+          label:"Chamados",
+          data:data,
+          backgroundColor:"#3b82f6"
+        }]
+      },
+      options:{
+        indexAxis:"y",
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{
+          x:{beginAtZero:true,ticks:{color:"#9ca3af"},grid:{color:"rgba(30,64,175,0.3)"}},
+          y:{ticks:{color:"#cbd5f5"},grid:{display:false}}
+        },
+        plugins:{legend:{display:false}}
+      }
+    });
+  }
+
+  function renderChartUsuario(tickets){
+    var pairs = groupCount(tickets,"requerente");
+    pairs.sort(function(a,b){ return b[1]-a[1]; });
+    var top = pairs.slice(0,7);
+    var labels = top.map(function(p){ return p[0]; });
+    var data = top.map(function(p){ return p[1]; });
+
+    ensureChart("chartUsuario", {
+      type:"bar",
+      data:{
+        labels:labels,
+        datasets:[{
+          label:"Chamados",
+          data:data,
+          backgroundColor:"#22c55e"
+        }]
+      },
+      options:{
+        indexAxis:"y",
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{
+          x:{beginAtZero:true,ticks:{color:"#9ca3af"},grid:{color:"rgba(22,163,74,0.25)"}},
+          y:{ticks:{color:"#cbd5f5"},grid:{display:false}}
+        },
+        plugins:{legend:{display:false}}
+      }
+    });
+  }
+
+  function renderChartNPS(encerrados){
+    var notas = encerrados.map(function(t){ return t.notaNps; }).filter(function(n){
+      return typeof n === "number" && !isNaN(n);
+    });
+    var prom=0, neut=0, det=0;
+    notas.forEach(function(n){
+      var tipo = classificaNps(n);
+      if(tipo==="promotor") prom++;
+      else if(tipo==="neutro") neut++;
+      else det++;
+    });
+    var labels = ["Promotores","Neutros","Detratores"];
+    var data = [prom,neut,det];
+
+    ensureChart("chartNPS", {
+      type:"bar",
+      data:{
+        labels:labels,
+        datasets:[{
+          data:data,
+          backgroundColor:["#22c55e","#eab308","#ef4444"]
+        }]
+      },
+      options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{
+          x:{ticks:{color:"#cbd5f5"},grid:{display:false}},
+          y:{beginAtZero:true,ticks:{color:"#9ca3af"},grid:{color:"rgba(30,64,175,0.3)"}}
+        },
+        plugins:{legend:{display:false}}
+      }
+    });
+  }
+
+  function renderTabela(encerrados){
+    var tb = document.getElementById("tbodyTickets");
+    tb.innerHTML = "";
+    encerrados
+      .slice()
+      .sort(function(a,b){ return new Date(b.dataRegistro) - new Date(a.dataRegistro); })
+      .forEach(function(t){
+        var tr = document.createElement("tr");
+        var tme = (typeof t.tmeMin === "number" ? t.tmeMin : Number(t.tmeMin||0)).toFixed(1);
+        var tma = (typeof t.tmaMin === "number" ? t.tmaMin : Number(t.tmaMin||0)).toFixed(1);
+
+        tr.innerHTML =
+          "<td class='ticket-id'>" + t.id + "</td>" +
+          "<td>" + formatDate(t.dataRegistro) + "</td>" +
+          "<td>" + (t.cliente||"-") + "</td>" +
+          "<td>" + (t.requerente||"-") + "</td>" +
+          "<td class='ticket-title'>" + (t.titulo||"-") + "</td>" +
+          "<td>" + tme + "</td>" +
+          "<td>" + tma + "</td>" +
+          "<td>" + renderNota(t.notaNps) + "</td>";
+
+        tr.addEventListener("click", function(){
+          abrirChamado(t.id);
+        });
+
+        tb.appendChild(tr);
+      });
+  }
+
+  function renderNota(nota){
+    if(typeof nota !== "number" || isNaN(nota)) return "-";
+    var cls = scorePillClass(nota);
+    return "<span class='pill-score " + cls + "'>" + nota.toFixed(1) + "</span>";
+  }
+
+  function abrirChamado(idChamado){
+    alert("Abrir detalhes do chamado: " + idChamado + " (aqui você integra com o HELP CENTRAL)");
+  }
+
+  // Filtros básicos (início/fim)
+  function recomputaFiltro(){
+    var inicioStr = document.getElementById("fDataInicio").value;
+    var fimStr    = document.getElementById("fDataFim").value;
+
+    var inicio = inicioStr ? new Date(inicioStr + "T00:00:00") : null;
+    var fim    = fimStr    ? new Date(fimStr    + "T23:59:59") : null;
+
+    state.filtered = state.allTickets.filter(function(t){
+      var d = parseDate(t.dataRegistro);
+      if(!within(d,inicio,fim)) return false;
+      // Filtro de cliente
+      var c = document.getElementById("fCliente").value;
+      if(c !== "all" && t.cliente !== c) return false;
+      // Filtro de unidade
+      var u = document.getElementById("fUnidade").value;
+      if(u !== "all" && (t.unidadeNegocio||"") !== u) return false;
+      return true;
+    });
+
+    var periodoTexto = document.getElementById("periodoTexto");
+    if(inicio || fim){
+      var ini = inicio ? formatDate(inicio) : "...";
+      var fi  = fim    ? formatDate(fim)    : "...";
+      periodoTexto.innerHTML = "Mostrando chamados entre <strong>" + ini + "</strong> e <strong>" + fi + "</strong>.";
+    }else{
+      periodoTexto.textContent = "Mostrando todos os chamados disponíveis.";
+    }
+
+    renderDashboard();
+  }
+
+  function populaFiltrosBase(){
+    var cliSet = {};
+    var undSet = {};
+    state.allTickets.forEach(function(t){
+      if(t.cliente) cliSet[t.cliente] = true;
+      if(t.unidadeNegocio) undSet[t.unidadeNegocio] = true;
+    });
+    var fCliente = document.getElementById("fCliente");
+    var fUnidade = document.getElementById("fUnidade");
+    var cliOpts = ["<option value='all'>Todos</option>"];
+    Object.keys(cliSet).sort().forEach(function(c){
+      cliOpts.push("<option>" + c + "</option>");
+    });
+    fCliente.innerHTML = cliOpts.join("");
+    var undOpts = ["<option value='all'>Todas</option>"];
+    Object.keys(undSet).sort().forEach(function(u){
+      undOpts.push("<option>" + u + "</option>");
+    });
+    fUnidade.innerHTML = undOpts.join("");
+  }
+
+  // API para o backend usar
+  window.ingestTickets = function(lista){
+    state.allTickets = Array.isArray(lista) ? lista.slice() : [];
+    populaFiltrosBase();
+    state.filtered = state.allTickets.slice();
+    renderDashboard();
+  };
+
+  // Eventos de filtro
+  ["fDataInicio","fDataFim","fCliente","fUnidade"].forEach(function(id){
+    var el = document.getElementById(id);
+    el.addEventListener("change", recomputaFiltro);
+  });
+
+  // Inicialização com mock
+  window.addEventListener("DOMContentLoaded", function(){
+    window.ingestTickets(ticketsMock);
+  });
+</script>
+</body>
+</html>
