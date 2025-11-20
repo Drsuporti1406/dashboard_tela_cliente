@@ -10,7 +10,7 @@ export default function GlpiLogin({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+  const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
 
   const handleLogin = async (e) => {
     e.preventDefault();

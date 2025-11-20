@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const session = require('express-session');
 const glpiAuthRoutes = require('./routes/glpiAuthRoutes');
+const dbRoutes = require('./routes/dbRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -26,6 +27,8 @@ app.use(session({
 
 // Mount GLPI auth routes
 app.use('/api/glpi', glpiAuthRoutes);
+// Mount simple DB helper routes
+app.use('/api/db', dbRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Backend minimal para GLPI auth (session_token)', version: '1.0.0' });

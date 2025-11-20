@@ -15,15 +15,69 @@ html, body {
 .v5-react-inner{ max-width:1360px; margin:0 auto; padding:24px 20px 40px; color:#e5e7eb }
 .header-bar{ display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:18px; flex-wrap:wrap }
 .brand{ display:flex; align-items:center; gap:12px }
-.logo-circle{ width:44px; height:44px; border-radius:14px; background:radial-gradient(circle at 30% 20%,#fde68a,#ea580c); display:flex; align-items:center; justify-content:center; font-weight:800; color:#111827 }
+.logo-circle{ width:56px; height:56px; border-radius:12px; overflow:hidden; display:flex; align-items:center; justify-content:center; background:radial-gradient(circle at 30% 20%, rgba(253,230,138,0.12), rgba(234,88,12,0.06)); box-shadow: 0 4px 14px rgba(2,6,23,0.6); padding:6px }
+.logo-circle img{ display:block; width:100%; height:100%; object-fit:contain; max-width:100%; max-height:100%; border-radius:8px }
+
+/* slightly adjust brand text weight/spacing to harmonize with logo */
+.brand-text span:first-child{ font-size:11px; text-transform:uppercase; letter-spacing:.20em; color:#9ca3af }
+.brand-text span:last-child{ display:block; font-size:16px; font-weight:700; color:#f9fafb }
 .brand-text span:first-child{ display:block; font-size:11px; text-transform:uppercase; letter-spacing:.20em; color:#9ca3af }
 .brand-text span:last-child{ display:block; font-size:18px; font-weight:600; color:#f9fafb }
 .header-right{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; flex:1 }
-.filters{ display:flex; flex-wrap:wrap; gap:10px; justify-content:flex-end }
-.filter{ background:rgba(15,23,42,0.9); border:1px solid var(--border); border-radius:999px; padding:6px 10px; display:flex; align-items:center; gap:6px; font-size:12px; color:#e5e7eb }
+.filters{ display:flex; flex-wrap:nowrap; gap:10px; justify-content:flex-end; align-items:center; overflow-x:auto; -webkit-overflow-scrolling:touch }
+.filters .filter{ flex: 0 0 auto }
+.filter{ background:rgba(15,23,42,0.9); border:1px solid var(--border); border-radius:999px; padding:6px 10px; display:flex; align-items:center; gap:6px; font-size:12px; color:#e5e7eb; flex: 0 0 auto }
 .filter span{ white-space:nowrap; color:#9ca3af; font-size:12px }
 .filter input, .filter select{ background: rgba(15,23,42,0.9); border: 1px solid var(--border); outline: none; color: #e5e7eb; font-size: 12px; padding: 6px 10px; border-radius: 999px; appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: linear-gradient(45deg, transparent 50%, rgba(203,213,245,0.95) 50%), linear-gradient(135deg, rgba(203,213,245,0.95) 50%, transparent 50%); background-position: calc(100% - 14px) calc(50% - 3px), calc(100% - 8px) calc(50% - 3px); background-size: 6px 6px; background-repeat: no-repeat, no-repeat; }
+.filter select{ /* fixed-ish width but allow shrinking to avoid wrapping */
+  width: 160px;
+  min-width: 110px;
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.filter input[type="date"]{ /* date inputs slightly narrower */
+  width: 140px;
+  /* remove the default triangle arrows/background set for other inputs
+     and place a single white calendar icon at the right */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='%23ffffff' viewBox='0 0 24 24'><path d='M7 10h5v5H7z' fill='none'/><path d='M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v13c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM19 19H5V9h14v10zM7 11h5v5H7z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: calc(100% - 12px) center;
+  background-size: 18px 18px;
+  padding-right: 36px; /* space for the icon so text doesn't overlap */
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* keep the native picker clickable but hide its visible indicator so our
+   custom white icon is the only visible element */
+.filter input[type="date"]::-webkit-calendar-picker-indicator{
+  opacity: 0; /* still clickable */
+  width: 18px;
+  height: 18px;
+  margin-right: 12px;
+  cursor: pointer;
+}
+
+/* Firefox fallback: make the native indicator transparent while keeping it usable */
+.filter input[type="date"]::-moz-calendar-picker-indicator{
+  opacity: 0;
+}
+
+/* style a single date-range input used by flatpickr */
+.filter .date-range-input{
+  width: 220px;
+  max-width: 320px;
+  padding-right: 36px; /* room for calendar icon */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' fill='%23ffffff' viewBox='0 0 24 24'><path d='M7 10h5v5H7z' fill='none'/><path d='M19 4h-1V2h-2v2H8V2H6v2H5C3.9 4 3 4.9 3 6v13c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM19 19H5V9h14v10zM7 11h5v5H7z'/></svg>");
+  background-repeat: no-repeat;
+  background-position: calc(100% - 12px) center;
+  background-size: 18px 18px;
+}
 .filter select option{ background: #0b1120; color: #e5e7eb }
+/* allow inputs and selects to shrink inside a flex container */
+.filter input, .filter select, .filter .date-range-input{ min-width: 0 }
 .badge-periodo{ font-size:12px; color:#9ca3af }
 .card{ background:linear-gradient(145deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98)); border-radius:18px; border:1px solid rgba(30,64,175,0.55); box-shadow:0 18px 50px rgba(15,23,42,0.75); overflow:hidden }
 .card-header{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px 8px; border-bottom:1px solid rgba(15,23,42,0.9); background:radial-gradient(circle at top left,rgba(30,64,175,0.5),transparent 60%) }
@@ -37,6 +91,14 @@ html, body {
 .chart-wrapper-sm{ position:relative; height:200px }
 .kpis{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:18px 0 8px }
 .kpi{ position:relative; overflow:hidden; background:radial-gradient(circle at top left,#0b1120,#020617); border-radius:18px; border:1px solid rgba(148,163,184,.25); padding:14px 16px; display:grid; grid-template-rows:auto auto auto; row-gap:4px; min-height:96px }
+.kpi.good, .kpi.ok{ box-shadow: 0 0 0 1px rgba(34,197,94,0.6) inset; }
+.kpi.mid, .kpi.warn{  box-shadow: 0 0 0 1px rgba(234,179,8,0.6) inset; }
+.kpi.bad, .kpi.crit{ box-shadow: 0 0 0 1px rgba(239,68,68,0.6) inset; }
+
+/* Optional subtle glow outside the card for stronger neon effect (tweak alpha as needed) */
+.kpi.good.kpi-glow, .kpi.ok.kpi-glow{ box-shadow: 0 0 0 1px rgba(34,197,94,0.6) inset, 0 6px 20px rgba(34,197,94,0.06); }
+.kpi.mid.kpi-glow,  .kpi.warn.kpi-glow{   box-shadow: 0 0 0 1px rgba(234,179,8,0.6) inset, 0 6px 20px rgba(234,179,8,0.06); }
+.kpi.bad.kpi-glow,  .kpi.crit.kpi-glow{  box-shadow: 0 0 0 1px rgba(239,68,68,0.6) inset, 0 6px 20px rgba(239,68,68,0.06); }
 .kpi h3{ margin:0; font-size:11px; font-weight:600; color:#9ca3af; letter-spacing:.08em; text-transform:uppercase }
 .kpi-main{ display:flex; align-items:flex-end; justify-content:space-between; gap:8px; z-index:1 }
 .kpi-value{ font-size:24px; font-weight:700; color:#f9fafb }

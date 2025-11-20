@@ -10,8 +10,8 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const BACKEND = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
-        const resp = await axios.get(`${BACKEND}/api/glpi/session`, { withCredentials: true });
+        const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+        const resp = await axios.get(`${BACKEND}/api/glpi/session`);
         if (resp.data && resp.data.session_token) {
           setHasSession(true);
         } else {
