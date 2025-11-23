@@ -19,10 +19,15 @@ function safeSerialize(obj) {
   }
 }
 
+const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+const _BASE_URL = import.meta.env.BASE_URL || '';
+const _BACKEND_PREFIX = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
+
 function sendPayload(payload) {
   try {
     // Use fetch; no CORS if using proxy in dev. Use sendBeacon on unload.
-    return fetch('/api/db/client-logs', {
+    const url = `${_BACKEND_PREFIX}/api/db/client-logs`;
+    return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -111,17 +116,19 @@ const clientLogger = {
     try {
       const body = JSON.stringify(payload);
       if (navigator.sendBeacon) {
-        const ok = navigator.sendBeacon('/api/db/client-logs', body);
+        const url = `${_BACKEND_PREFIX}/api/db/client-logs`;
+        const ok = navigator.sendBeacon(url, body);
         if (!ok) {
           // fallback to synchronous XHR
           const xhr = new XMLHttpRequest();
-          xhr.open('POST', '/api/db/client-logs', false);
+          xhr.open('POST', url, false);
           xhr.setRequestHeader('Content-Type', 'application/json');
           try { xhr.send(body); } catch (e) {}
         }
       } else {
+        const url = `${_BACKEND_PREFIX}/api/db/client-logs`;
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', '/api/db/client-logs', false);
+        xhr.open('POST', url, false);
         xhr.setRequestHeader('Content-Type', 'application/json');
         try { xhr.send(body); } catch (e) {}
       }

@@ -46,7 +46,9 @@ export default function V5Report() {
   const lastServerResponseFiltersRef = useRef(null);
   const chartsFetchId = useRef(0);
 
-  const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+  const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+  const _BASE_URL = import.meta.env.BASE_URL || '';
+  const BACKEND = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
 
   // forward minimal client-side debug events to the backend for offline inspection
   const clientLog = async (obj) => {
@@ -247,8 +249,6 @@ export default function V5Report() {
       const arr = Array.isArray(lista) ? lista.slice() : [];
       setAllTickets(arr);
     };
-
-    const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
 
     // fetch full list of entities (companies) once so the Cliente dropdown keeps all options
     const fetchEntities = async () => {
