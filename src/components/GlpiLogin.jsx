@@ -10,7 +10,9 @@ export default function GlpiLogin({ onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+  const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+  const _BASE_URL = import.meta.env.BASE_URL || '';
+  const BACKEND = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -19,6 +21,10 @@ export default function GlpiLogin({ onSuccess }) {
     try {
       const resp = await axios.post(`${BACKEND}/api/glpi/login`, { login, password }, { withCredentials: true });
       if (resp.data && resp.data.success) {
+        // store session_token so reloads can auto-detect
+        if (resp.data.session_token) {
+          try { localStorage.setItem('glpi_session_token', resp.data.session_token); } catch (e) {}
+        }
         onSuccess?.();
       } else {
         setError(resp.data?.message || 'Falha no login.');
@@ -37,6 +43,8 @@ export default function GlpiLogin({ onSuccess }) {
     try {
       const resp = await axios.post(`${BACKEND}/api/glpi/session`, { session_token: token }, { withCredentials: true });
       if (resp.data && resp.data.success) {
+        // persist the provided token so reloads can auto-detect
+        try { localStorage.setItem('glpi_session_token', token); } catch (e) {}
         onSuccess?.();
       } else {
         setError(resp.data?.message || 'Token inválido.');
