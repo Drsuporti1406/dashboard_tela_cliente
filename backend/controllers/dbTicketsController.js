@@ -185,6 +185,127 @@ async function getTickets(req, res) {
 
 module.exports = { getTickets };
 
+// GET /api/db/tickets/details?id=... -> returns ticket row and followups/comments where possible
+async function getTicketDetails(req, res) {
+  try {
+    const id = req.query.id ? Number(req.query.id) : null;
+    if (!id || Number.isNaN(id)) return res.status(400).json({ success: false, message: 'missing ticket id' });
+
+    // fetch raw ticket row
+    const [rows] = await pool.query('SELECT * FROM glpi_tickets WHERE id = ?', [id]);
+    const ticket = rows && rows[0] ? rows[0] : null;
+
+    // determine DB schema name
+    const schema = (pool && pool.config && pool.config.connectionConfig && pool.config.connectionConfig.database) || process.env.GLPI_DB_NAME || 'glpi';
+
+    // Prioritized tables known to store user comments / followups
+    const prioritized = ['glpi_itilfollowups', 'glpi_tickettasks', 'glpi_ticketsatisfactions'];
+    const followups = [];
+    const tableErrors = [];
+
+    // helper to normalize a row into {id, table, author, author_id, date, content}
+    const normalizeRow = (tbl, row) => {
+      const author = row.user_realname || row.user_login || row.user_name || row.user || null;
+      const author_id = row.users_id || row.user_id || null;
+      const date = row.date || row.date_creation || row.date_mod || row.created_at || null;
+      const content = (row.content || row.comment || row.message || row.description || '').toString();
+      const is_private = (typeof row.is_private !== 'undefined') ? Number(row.is_private) : null;
+      const users_id_editor = (typeof row.users_id_editor !== 'undefined') ? Number(row.users_id_editor) : null;
+      return { id: `${tbl}:${row.id}`, table: tbl, author, author_id, date, date_creation: row.date_creation || null, users_id_editor, is_private, content, raw: row };
+    };
+
+    // try prioritized tables first (deterministic)
+    for (const tbl of prioritized) {
+      try {
+        // check table exists
+        const [chk] = await pool.query('SELECT COUNT(*) AS cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?', [schema, tbl]);
+        const exists = chk && chk[0] && Number(chk[0].cnt) > 0;
+        if (!exists) continue;
+
+        // attempt polymorphic (items_id+itemtype) or tickets_id
+        // prefer items_id if present
+        const [cols] = await pool.query('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?', [schema, tbl]);
+        const colNames = (cols || []).map((c) => String(c.COLUMN_NAME).toLowerCase());
+        let q = '';
+        let params = [id];
+        if (colNames.indexOf('items_id') !== -1 && colNames.indexOf('itemtype') !== -1) {
+          q = `SELECT f.*, u.realname AS user_realname, u.name AS user_login FROM \`${tbl}\` f LEFT JOIN glpi_users u ON u.id = f.users_id WHERE f.items_id = ? AND (LOWER(f.itemtype) = 'ticket' OR LOWER(f.itemtype) LIKE '%ticket%') ORDER BY COALESCE(f.date, f.date_creation) ASC LIMIT 500`;
+        } else if (colNames.indexOf('tickets_id') !== -1) {
+          q = `SELECT f.*, u.realname AS user_realname, u.name AS user_login FROM \`${tbl}\` f LEFT JOIN glpi_users u ON u.id = f.users_id WHERE f.tickets_id = ? ORDER BY COALESCE(f.date, f.date_creation) ASC LIMIT 500`;
+        } else if (colNames.indexOf('ticket_id') !== -1) {
+          q = `SELECT f.*, u.realname AS user_realname, u.name AS user_login FROM \`${tbl}\` f LEFT JOIN glpi_users u ON u.id = f.users_id WHERE f.ticket_id = ? ORDER BY COALESCE(f.date, f.date_creation) ASC LIMIT 500`;
+        } else {
+          continue;
+        }
+        const [rowsF] = await pool.query(q, params);
+        if (rowsF && rowsF.length) {
+          rowsF.forEach((r) => followups.push(normalizeRow(tbl, r)));
+        }
+      } catch (e) {
+        try { tableErrors.push({ table: tbl, error: String(e && e.message ? e.message : e) }); } catch (ee) {}
+        continue;
+      }
+    }
+
+    // build final normalized ticket: include description candidate fields
+    const normalizedTicket = ticket ? ({ id: ticket.id, titulo: ticket.name || ticket.title || '', descricao: ticket.content || ticket.description || ticket.comment || '' , raw: ticket }) : null;
+
+    const wantDebug = req.query.debug === '1' || req.query.debug === 'true';
+    const result = { success: true, ticket: normalizedTicket, followups: [] };
+
+    // dedupe followups by id
+    const seen = new Set();
+    for (const f of followups) {
+      if (!f || !f.id) continue;
+      if (seen.has(f.id)) continue;
+      seen.add(f.id);
+      result.followups.push(f);
+    }
+
+    // if no followups and debug requested, run broader scan + include diagnostics
+    if ((result.followups.length === 0) && wantDebug) {
+      // reuse previous broader discovery (scan columns for FK-like names)
+      const fkCols = ['tickets_id','ticket_id','ticketsid','items_id','itemtype','ticketid','id_ticket'];
+      const placeholders = fkCols.map(() => '?').join(',');
+      const [colsFound] = await pool.query(
+        `SELECT DISTINCT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND LOWER(COLUMN_NAME) IN (${placeholders})`,
+        [schema, ...fkCols]
+      );
+      const candidateTables = Array.from(new Set((colsFound || []).map((r) => r.TABLE_NAME)));
+      const tableSamples = [];
+      for (const t of candidateTables) {
+        try {
+          // determine FK column
+          const [cols] = await pool.query('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?', [schema, t]);
+          const colNames = (cols || []).map((c) => String(c.COLUMN_NAME).toLowerCase());
+          let fkCol = null;
+          if (colNames.indexOf('items_id') !== -1) fkCol = 'items_id';
+          else if (colNames.indexOf('tickets_id') !== -1) fkCol = 'tickets_id';
+          else if (colNames.indexOf('ticket_id') !== -1) fkCol = 'ticket_id';
+          else if (colNames.indexOf('ticketid') !== -1) fkCol = 'ticketid';
+          let cnt = 0;
+          let sample = [];
+          if (fkCol) {
+            try { const [crows] = await pool.query(`SELECT COUNT(*) as cnt FROM \`${t}\` WHERE \`${fkCol}\` = ?`, [id]); cnt = (crows && crows[0] && Number(crows[0].cnt)) ? Number(crows[0].cnt) : 0; } catch (e) { cnt = 0; }
+            try { const [srows] = await pool.query(`SELECT * FROM \`${t}\` WHERE \`${fkCol}\` = ? LIMIT 5`, [id]); sample = srows || []; } catch (e) { sample = []; }
+          }
+          tableSamples.push({ table: t, fkCol, count: cnt, sample });
+        } catch (e) {
+          tableSamples.push({ table: t, error: String(e && e.message ? e.message : e) });
+        }
+      }
+      result.diagnostics = { tableErrors, tableSamples };
+    }
+
+    return res.json(result);
+  } catch (err) {
+    console.error('dbTickets.getTicketDetails error', err);
+    return res.status(500).json({ success: false, message: err.message || 'failed to fetch ticket details' });
+  }
+}
+
+module.exports.getTicketDetails = getTicketDetails;
+
 // GET /api/db/tickets/nps -> aggregated NPS summary for the same filters used by getTickets
 async function getNpsSummary(req, res) {
   try {
@@ -386,3 +507,6 @@ async function getTechnicians(req, res) {
 
 // include in exports
 module.exports.getTechnicians = getTechnicians;
+
+// ensure ticket details exporter (in case earlier assignments replaced it)
+module.exports.getTicketDetails = typeof module.exports.getTicketDetails === 'function' ? module.exports.getTicketDetails : getTicketDetails;

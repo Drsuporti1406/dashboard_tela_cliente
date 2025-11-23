@@ -73,6 +73,42 @@ export default function V5Report() {
     const dt = d instanceof Date ? d : new Date(d);
     return dt.toLocaleDateString('pt-BR');
   };
+  const formatDateTime = (d) => {
+    if (!d) return '-';
+    const dt = d instanceof Date ? d : new Date(d);
+    try {
+      return dt.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch (e) {
+      return `${formatDate(dt)} ${dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    }
+  };
+  // Safely decode HTML entities (browser-only) and strip HTML tags
+  const decodeHtmlEntities = (html) => {
+    try {
+      if (typeof document !== 'undefined') {
+        const txt = document.createElement('textarea');
+        txt.innerHTML = String(html || '');
+        return txt.value;
+      }
+    } catch (e) {}
+    return String(html || '');
+  };
+  const stripHtmlTags = (s) => {
+    try {
+      return String(s || '').replace(/<[^>]*>/g, '');
+    } catch (e) {
+      return String(s || '');
+    }
+  };
+  const renderPlainWithBreaks = (raw) => {
+    const decoded = decodeHtmlEntities(raw);
+    const stripped = stripHtmlTags(decoded);
+    const parts = String(stripped || '').split(/\r?\n/);
+    return parts.map((line, i) => (
+      // keep line breaks but avoid using dangerouslySetInnerHTML
+      <span key={i}>{line}{i < parts.length - 1 ? <br/> : null}</span>
+    ));
+  };
   const resolveClienteName = (t) => {
     // prefer textual cliente when available
     if (!t) return null;
@@ -220,6 +256,24 @@ export default function V5Report() {
     if (typeof status === 'number') return status >= 5; // GLPI common: 5/6 are solved/closed
     if (typeof status === 'string') return String(status).toLowerCase() === 'encerrado' || String(status).toLowerCase() === 'closed' || String(status).toLowerCase() === 'resolvido' || String(status).toLowerCase() === 'solucionado';
     return false;
+  };
+
+  // helper: map ticket object to simple status key: 'play' | 'pause' | 'check'
+  const ticketStatusClass = (ticket) => {
+    try {
+      if (!ticket) return 'pause';
+      const st = ticket.status;
+      const label = (ticket.statusLabel || '').toString().toLowerCase();
+      if (typeof st === 'number' && st >= 5) return 'check';
+      if (label.indexOf('fechado') !== -1 || label.indexOf('resolvid') !== -1 || label.indexOf('solucionad') !== -1) return 'check';
+      if (label.indexOf('pend') !== -1) return 'pause';
+      if (label.indexOf('atend') !== -1 || label.indexOf('em atendimento') !== -1) return 'play';
+      // fallback: if technician has taken the ticket, consider 'em atendimento'
+      if (ticket.takeintoaccountdate) return 'play';
+      return 'pause';
+    } catch (e) {
+      return 'pause';
+    }
   };
   // NPS classification for 1-5 scale:
   // 5 -> promotor, 4 -> neutro (passive), 1-3 -> detrator
@@ -683,7 +737,7 @@ export default function V5Report() {
     ensureChart(chartLinhaRef, 'chartLinha', {
       type: 'line',
       data: { labels, datasets: [{ label: 'Chamados por dia', data, tension: 0.35, borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.25)', fill: true, pointRadius: 3, pointBackgroundColor: '#fed7aa' }] },
-      options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#9ca3af' }, grid: { color: 'rgba(30,64,175,0.3)' } }, y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(30,64,175,0.25)' } } }, plugins: { legend: { display: false } } }
+      options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#475569' }, grid: { color: 'rgba(71,85,105,0.06)' } }, y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: 'rgba(71,85,105,0.06)' } } }, plugins: { legend: { display: false } } }
     });
   }
 
@@ -738,10 +792,10 @@ export default function V5Report() {
     const FADED_COLOR = '#9ca3b8';
     const bg = labels.map((lab, i) => ((excludedCategorias || []).map((p) => String(p)).indexOf(String(lab)) !== -1) ? FADED_COLOR : baseColors[i]);
     // renderChartCategoria: deterministic ordering applied
-    ensureChart(chartCategoriaRef, 'chartCategoria', {
+      ensureChart(chartCategoriaRef, 'chartCategoria', {
       type: 'doughnut',
       data: { labels, datasets: [{ data, backgroundColor: bg, borderColor: '#ffffff00', borderWidth: 1 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#cbd5f5', padding: 10, font: { size: 11 } } } }, cutout: '58%' }
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#475569', padding: 10, font: { size: 11 } } } }, cutout: '58%' }
     });
 
     // attach click handler to toggle excludedCategorias (visual fade + filter)
@@ -814,8 +868,17 @@ export default function V5Report() {
         const key = String(uid && uid !== 0 ? uid : (t && (t.unidadeNegocio || 'Sem unidade')));
         counts[key] = (counts[key] || 0) + 1;
       });
-      // map numeric ids back to names where possible
-      labels = Object.keys(counts).map((k) => (idToName[k] ? idToName[k] : k));
+      // map numeric ids back to names where possible. If a key equals the selected cliente (parent)
+      // and isn't present in unidadesList, resolve the parent name from `empresas` so the chart
+      // shows the matriz name instead of the raw id.
+      labels = Object.keys(counts).map((k) => {
+        if (idToName[k]) return idToName[k];
+        if (clienteFilter && String(k) === String(clienteFilter)) {
+          const parent = (empresas || []).find((e) => String(e.id) === String(clienteFilter));
+          if (parent) return `${parent.name} (Matriz)`;
+        }
+        return k;
+      });
       data = Object.keys(counts).map((k) => counts[k]);
       // sort by count desc while keeping labels/data aligned
       const pairs = labels.map((l, i) => [l, data[i]]).sort((a, b) => b[1] - a[1]);
@@ -831,7 +894,7 @@ export default function V5Report() {
     ensureChart(chartUnidadeRef, 'chartUnidade', {
       type: 'bar',
       data: { labels, datasets: [{ label: 'Chamados', data, backgroundColor: '#3b82f6' }] },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(30,64,175,0.3)' } }, y: { ticks: { color: '#cbd5f5' }, grid: { display: false } } }, plugins: { legend: { display: false } } }
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: 'rgba(71,85,105,0.06)' } }, y: { ticks: { color: '#475569' }, grid: { display: false } } }, plugins: { legend: { display: false } } }
     });
   }
 
@@ -872,7 +935,7 @@ export default function V5Report() {
     ensureChart(chartUsuarioRef, 'chartUsuario', {
       type: 'bar',
       data: { labels, datasets: [{ label: 'Chamados', data, backgroundColor: bg, borderColor: bg, borderWidth: 1 }] },
-      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(22,163,74,0.25)' } }, y: { ticks: { color: '#cbd5f5' }, grid: { display: false } } }, plugins: { legend: { display: false } } }
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, scales: { x: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: 'rgba(71,85,105,0.06)' } }, y: { ticks: { color: '#475569' }, grid: { display: false } } }, plugins: { legend: { display: false } } }
     });
 
     // register click handler on the chart instance (more reliable) and also attach
@@ -1084,7 +1147,7 @@ export default function V5Report() {
       ensureChart(chartNPSRef, 'chartNPS', {
         type: 'bar',
         data: { labels: ['Sem respostas'], datasets: [{ data: [1], backgroundColor: ['#94a3b8'] }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#cbd5f5' }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(30,64,175,0.3)' } } }, plugins: { legend: { display: false } } }
+        options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#475569' }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: 'rgba(71,85,105,0.06)' } } }, plugins: { legend: { display: false } } }
       });
       return;
     }
@@ -1092,7 +1155,7 @@ export default function V5Report() {
     ensureChart(chartNPSRef, 'chartNPS', {
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: ['#22c55e', '#eab308', '#ef4444'] }] },
-      options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#cbd5f5' }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#9ca3af' }, grid: { color: 'rgba(30,64,175,0.3)' } } }, plugins: { legend: { display: false } } }
+      options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#475569' }, grid: { display: false } }, y: { beginAtZero: true, ticks: { color: '#475569' }, grid: { color: 'rgba(71,85,105,0.06)' } } }, plugins: { legend: { display: false } } }
     });
   }
 
@@ -1114,7 +1177,7 @@ export default function V5Report() {
     ensureChart(chartNPSRef, 'chartNPS', {
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: ['#22c55e', '#eab308', '#ef4444'] }] },
-      options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#cbd5f5' } }, y: { beginAtZero: true, ticks: { color: '#9ca3af' } } }, plugins: { legend: { display: false } } }
+      options: { responsive: true, maintainAspectRatio: false, scales: { x: { ticks: { color: '#cccccc' } }, y: { beginAtZero: true, ticks: { color: '#cccccc' } } }, plugins: { legend: { display: false } } }
     });
   }
 
@@ -1332,6 +1395,54 @@ export default function V5Report() {
     return <span className={`pill-score ${scorePillClass(nota)}`}>{nota.toFixed(1)}</span>;
   };
 
+  // Modal state for ticket details
+  const [ticketModalOpen, setTicketModalOpen] = useState(false);
+  const [ticketModalTicket, setTicketModalTicket] = useState(null);
+  const [ticketModalLoading, setTicketModalLoading] = useState(false);
+
+  const openTicketModal = async (t) => {
+    setTicketModalOpen(true);
+    setTicketModalLoading(true);
+    setTicketModalTicket(null);
+    try {
+      // try to fetch enriched details from backend
+      const url = `${BACKEND}/api/db/tickets/details?id=${encodeURIComponent(t.id)}`;
+      const res = await axios.get(url, { timeout: 10000 });
+      if (res && res.data && res.data.success) {
+        const ticketRow = res.data.ticket || null;
+        const followups = Array.isArray(res.data.followups) ? res.data.followups : [];
+        // merge base ticket t with fetched ticketRow for fields like descricao
+        const merged = Object.assign({}, t, ticketRow || {});
+        merged.followups = followups;
+        setTicketModalTicket(merged);
+      } else {
+        // fallback to shallow ticket object
+        setTicketModalTicket(t);
+      }
+    } catch (err) {
+      console.error('Failed to fetch ticket details', err);
+      setTicketModalTicket(t);
+    } finally {
+      setTicketModalLoading(false);
+    }
+  };
+
+  const closeTicketModal = () => {
+    setTicketModalOpen(false);
+    setTicketModalTicket(null);
+  };
+
+  // close modal on ESC
+  useEffect(() => {
+    if (!ticketModalOpen) return;
+    const onKey = (e) => { if (e.key === 'Escape') closeTicketModal(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ticketModalOpen]);
+
+  // compute modal ticket status (used to render the small icon next to ID)
+  const modalStatus = ticketModalTicket ? ticketStatusClass(ticketModalTicket) : 'pause';
+
   return (
     <div className="v5-bg">
       <div className="layout v5-react-inner">
@@ -1459,6 +1570,127 @@ export default function V5Report() {
         </article>
       </section>
 
+      {/* Ticket details modal */}
+      {ticketModalOpen && ticketModalTicket ? (
+        <div className="ticket-modal-overlay" onClick={(e) => { if (e.target.classList && e.target.classList.contains('ticket-modal-overlay')) closeTicketModal(); }}>
+          <div className="ticket-modal" role="dialog" aria-modal="true">
+            {/* Top meta block (matches the attached image): two lines small muted text + divider */}
+            <div className="ticket-modal-meta">
+              {(() => {
+                const raw = ticketModalTicket.raw || {};
+                const createdCandidates = [ticketModalTicket.date_creation, ticketModalTicket.created_at, ticketModalTicket.date, raw.date_creation, raw.date, raw.created_at];
+                const updatedCandidates = [ticketModalTicket.date_mod, ticketModalTicket.updated_at, ticketModalTicket.date_modification, raw.date_mod, raw.date_mod, raw.updated_at, ticketModalTicket.solvedate, ticketModalTicket.closedate];
+                const created = createdCandidates.find((v) => v) || null;
+                const updated = updatedCandidates.find((v) => v) || null;
+                return (
+                  <div>
+                    {created ? (<div className="ticket-modal-meta-line">{`Criado em ${formatDateTime(created)}`}</div>) : null}
+                    {updated ? (<div className="ticket-modal-meta-line">{`Última atualização em ${formatDateTime(updated)}`}</div>) : null}
+                  </div>
+                );
+              })()}
+            </div>
+            <div className="ticket-modal-header">
+              <div className="followup-author">
+                <div className="followup-meta">
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <div className="followup-author-name">
+                      <span className={`status-icon status-${modalStatus}`} aria-hidden="true">
+                        {modalStatus === 'play' ? (
+                          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M8 5v14l11-7z" fill="#ffffff"/></svg>
+                        ) : modalStatus === 'pause' ? (
+                          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="6" y="5" width="4" height="14" fill="#ffffff"/><rect x="14" y="5" width="4" height="14" fill="#ffffff"/></svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M20 6L9 17l-5-5" stroke="#ffffff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
+                        )}
+                      </span>
+                      <><span className="ticket-id-modal">#{ticketModalTicket.id}</span>{` ${ticketModalTicket.titulo || ''}`}</>
+                    </div>
+                    {(() => {
+                      const rawLabel = ticketModalTicket.statusLabel;
+                      let statusLabel = rawLabel;
+                      let statusClass = 'tag-open';
+                      if (!rawLabel) {
+                        // derive from numeric status or fields
+                        if (typeof ticketModalTicket.status === 'number') {
+                          if (ticketModalTicket.status >= 5) {
+                            statusLabel = 'Encerrado';
+                            statusClass = 'tag-check';
+                          } else {
+                            statusLabel = 'Aberto';
+                            statusClass = 'tag-open';
+                          }
+                        } else if (ticketModalTicket.takeintoaccountdate) {
+                          statusLabel = 'Em atendimento';
+                          statusClass = 'tag-play';
+                        } else {
+                          statusLabel = 'Aberto';
+                          statusClass = 'tag-open';
+                        }
+                      } else {
+                        const ll = String(rawLabel).toLowerCase();
+                        if (ll.indexOf('abert') !== -1) statusClass = 'tag-open';
+                        else if (ll.indexOf('pend') !== -1) statusClass = 'tag-pause';
+                        else if (ll.indexOf('atend') !== -1) statusClass = 'tag-play';
+                        else if (ll.indexOf('fech') !== -1 || ll.indexOf('encerr') !== -1 || ll.indexOf('resolvid') !== -1 || ll.indexOf('solucionad') !== -1) statusClass = 'tag-check';
+                        else statusClass = 'tag-open';
+                      }
+                      return (<div className={`tag ${statusClass}`}>{statusLabel}</div>);
+                    })()}
+                  </div>
+                </div>
+              </div>
+              <button className="ticket-modal-close" onClick={closeTicketModal} aria-label="Fechar">✕</button>
+            </div>
+
+            <div className="ticket-modal-body">
+              <div className="ticket-message-box">
+                  {ticketModalLoading ? (
+                    <div style={{color: 'var(--muted)'}}>Carregando detalhes...</div>
+                  ) : (
+                    (ticketModalTicket && (ticketModalTicket.descricao || (ticketModalTicket.row && ticketModalTicket.row.content))) ? (
+                      <div className="followup-card" style={{marginBottom:12}}>
+                        <div className="followup-label">Descrição</div>
+                        <div className="followup-content">{renderPlainWithBreaks(ticketModalTicket.descricao || (ticketModalTicket.row && ticketModalTicket.row.content) || '')}</div>
+                      </div>
+                    ) : (
+                      <div style={{color:'var(--muted)'}}>Sem descrição disponível.</div>
+                    )
+                  )}
+
+                  {/* followups list */}
+                  {!ticketModalLoading && ticketModalTicket && ticketModalTicket.followups && ticketModalTicket.followups.length > 0 ? (
+                    <div style={{marginTop:12}}>
+                      <div style={{display:'grid', gap:8}}>
+                        {ticketModalTicket.followups.map((f, idx) => {
+                          const n = (f && f.normalized) ? f.normalized : (f && f.raw) ? f.raw : f;
+                          const author = (n && (n.author || n.user_realname || n.user_login || n.realname || n.name)) ? (n.author || n.user_realname || n.user_login || n.realname || n.name) : 'Usuário';
+                          const date = (n && (n.date || n.date_creation || n.date_mod)) ? (n.date || n.date_creation || n.date_mod) : '';
+                          const content = (n && (n.content || n.comment || n.description || n.message)) ? (n.content || n.comment || n.description || n.message) : '';
+                          const key = (f && f.id) ? String(f.id) : `${f.table || 'f'}-${idx}`;
+                          return (
+                            <div key={key} className="followup-card">
+                              <div className="followup-author">
+                                          <div className="followup-avatar">{(author && author[0]) || 'U'}</div>
+                                          <div className="followup-meta">
+                                            <div className="followup-author-name">{author}</div>
+                                            <div className="followup-author-date">{date}</div>
+                                          </div>
+                                        </div>
+                              <div className="followup-content">{renderPlainWithBreaks(content || '')}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+            </div>
+
+          </div>
+        </div>
+      ) : null}
+
       <section className="cards-grid-small">
         <article className="card">
           <header className="card-header">
@@ -1568,7 +1800,7 @@ export default function V5Report() {
               </thead>
               <tbody id="tbodyTickets">
                 {paginatedFiltered.slice().sort((a,b)=>new Date(b.dataRegistro)-new Date(a.dataRegistro)).map((t) => (
-                  <tr key={t.id} onClick={() => window.open(`#ticket-${t.id}`, '_blank')}>
+                  <tr key={t.id} onClick={() => openTicketModal(t)}>
                     <td className="ticket-id">{t.id}</td>
                     <td>{formatDate(t.dataRegistro)}</td>
                     <td>{t.cliente || '-'}</td>

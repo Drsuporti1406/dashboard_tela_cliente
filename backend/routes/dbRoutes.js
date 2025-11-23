@@ -13,6 +13,9 @@ router.get('/entities/children/:parentId', getChildren);
 // GET /api/db/tickets -> list tickets (supports query filters)
 router.get('/tickets', getTickets);
 
+// GET /api/db/tickets/details?id=123 -> ticket details + followups (best-effort)
+router.get('/tickets/details', require('../controllers/dbTicketsController').getTicketDetails);
+
 // GET /api/db/tickets/nps -> aggregated NPS summary for current filters
 router.get('/tickets/nps', getNpsSummary);
 
