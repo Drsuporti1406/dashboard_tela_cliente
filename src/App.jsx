@@ -1,72 +1,89 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App2.css';
-import GlpiLogin from './components/GlpiLogin';
 import V5Report from './pages/V5Report';
 
 export default function App() {
-  const [hasSession, setHasSession] = useState(null); // null = checking, false = no session
+  // authChecked: concluímos verificação do token principal (SSO) vindo do helpcentral_front
+  const [authChecked, setAuthChecked] = useState(false);
+  const [glpiReady, setGlpiReady] = useState(false); // opcional: GLPI session estabelecida
 
+  // Verifica se existe token de autenticação gerado pelo helpcentral_front
   useEffect(() => {
+    const token = (() => {
+      try { return localStorage.getItem('token'); } catch (e) { return null; }
+    })();
+    if (!token) {
+      // Sem token compartilhado -> redireciona para a tela de login central
+      if (typeof window !== 'undefined') {
+        window.location.href = '/sign-in';
+      }
+      return;
+    }
+    setAuthChecked(true);
+  }, []);
+
+  // Estabelece sessão GLPI reutilizando qualquer session_token já existente (sem UI de login)
+  useEffect(() => {
+    if (!authChecked) return; // aguarda SSO
     (async () => {
       try {
         const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
         const _BASE_URL = import.meta.env.BASE_URL || '';
         const BACKEND = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
-        // First ask backend if it already has a session
-        const resp = await axios.get(`${BACKEND}/api/glpi/session`);
-        if (resp.data && resp.data.session_token) {
-          setHasSession(true);
+
+        // Verifica se backend já tem sessão
+        const existing = await axios.get(`${BACKEND}/api/glpi/session`);
+        if (existing.data && existing.data.session_token) {
+          setGlpiReady(true);
           return;
         }
 
-        // If backend has no session, try to detect a stored session_token on the client
-        // 1) check localStorage
+        // Busca tokens locais
         const tryTokenKeys = ['glpi_session_token', 'session_token', 'glpiSessionToken'];
         let found = null;
         for (const k of tryTokenKeys) {
-          const t = localStorage.getItem(k);
-          if (t) { found = t; break; }
+          try {
+            const t = localStorage.getItem(k);
+            if (t) { found = t; break; }
+          } catch (e) {}
         }
 
-        // 2) check cookies (if cookie is not HttpOnly)
+        // Cookies não HttpOnly (fallback)
         if (!found && typeof document !== 'undefined') {
           const getCookie = (name) => {
             const v = document.cookie.match('(?:^|; )' + name + '=([^;]*)');
             return v ? decodeURIComponent(v[1]) : null;
           };
-          const cookieNames = ['glpi_session_token', 'session_token', 'glpi_session'];
+            const cookieNames = ['glpi_session_token', 'session_token', 'glpi_session'];
           for (const c of cookieNames) {
             const v = getCookie(c);
             if (v) { found = v; break; }
           }
         }
 
-        // If we found a token on the client, post it to backend to establish session
         if (found) {
           try {
             await axios.post(`${BACKEND}/api/glpi/session`, { session_token: found }, { withCredentials: true });
-            setHasSession(true);
+            setGlpiReady(true);
             return;
           } catch (e) {
-            // fallthrough to show login
+            // Ignora falha; dashboard continuará sem sessão GLPI (algumas chamadas podem falhar)
           }
         }
 
-        setHasSession(false);
+        // Se não achou token GLPI, segue adiante; a interface mostrará erros de API conforme necessário
+        setGlpiReady(false);
       } catch (err) {
-        setHasSession(false);
+        setGlpiReady(false);
       }
     })();
-  }, []);
+  }, [authChecked]);
 
-  if (hasSession === false) {
-    return <GlpiLogin onSuccess={() => setHasSession(true)} />;
+  if (!authChecked) {
+    return <div style={{ padding: 20 }}>Verificando autenticação...</div>;
   }
 
-  if (hasSession === null) {
-    return <div style={{ padding: 20 }}>Verificando sessão...</div>;
-  }
-
+  // Não bloqueamos a UI se GLPI não estiver pronto; alguns gráficos podem mostrar vazio até haver sessão.
   return <V5Report />;
 }

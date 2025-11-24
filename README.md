@@ -18,3 +18,7 @@ npm run dev
 Observações:
 - O projeto inclui `chart.js` e `axios`.
 - O componente `V5Report` usa `GET /api/entities` para popular o dropdown de clientes; se não houver backend rodando, o dashboard usa dados mock inclusos.
+- Sistema de login próprio removido: agora o dashboard depende do login feito em `helpcentral_front`.
+	- O token de autenticação (`localStorage['token']`) precisa estar presente (mesma origem/domínio) ou o usuário será redirecionado para `/sign-in`.
+	- A sessão GLPI é detectada automaticamente via `GET /api/glpi/session` ou reaproveita `glpi_session_token` armazenado em `localStorage` / cookie; se ausente, alguns dados podem falhar até a sessão ser criada externamente.
+	- Para domínios diferentes, considere unificar em um subdomínio comum (ex.: `app.example.com/helpcentral` e `app.example.com/dashboard`) ou implementar um fluxo `postMessage` que sincronize o token antes do carregamento.
