@@ -2,11 +2,29 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import './App2.css';
 import V5Report from './pages/V5Report';
+import Inventory from './pages/Inventory';
 
 export default function App() {
   // authChecked: concluímos verificação do token principal (SSO) vindo do helpcentral_front
   const [authChecked, setAuthChecked] = useState(false);
   const [glpiReady, setGlpiReady] = useState(false); // opcional: GLPI session estabelecida
+  const [currentPage, setCurrentPage] = useState('v5report');
+
+  // Navegação simples por hash
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1); // remove o #
+      if (hash === '/inventory') {
+        setCurrentPage('inventory');
+      } else {
+        setCurrentPage('v5report');
+      }
+    };
+
+    handleHashChange(); // inicializa
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   // Verifica se existe token de autenticação gerado pelo helpcentral_front
   useEffect(() => {
@@ -84,6 +102,18 @@ export default function App() {
     return <div style={{ padding: 20 }}>Verificando autenticação...</div>;
   }
 
-  // Não bloqueamos a UI se GLPI não estiver pronto; alguns gráficos podem mostrar vazio até haver sessão.
-  return <V5Report />;
+  // Navegação entre páginas
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'inventory':
+        return <Inventory />;
+      case 'v5report':
+      default:
+        return <V5Report />;
+    }
+  };
+
+  // dev-login removed
+
+  return renderPage();
 }

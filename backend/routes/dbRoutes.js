@@ -10,6 +10,15 @@ router.get('/entities', getAllEntities);
 // GET /api/db/entities/children/:parentId -> children of given parent
 router.get('/entities/children/:parentId', getChildren);
 
+// GET /api/db/entities/:id/computers -> computers for given entity
+router.get('/entities/:id/computers', require('../controllers/dbEntitiesController').getComputersByEntity);
+
+// GET /api/db/computers/count -> total computers (optional ?entityId=)
+router.get('/computers/count', require('../controllers/dbEntitiesController').getComputersCount);
+
+// GET /api/db/computers/search?name= -> search computers by name or serial
+router.get('/computers/search', require('../controllers/dbEntitiesController').searchComputersByName);
+
 // GET /api/db/tickets -> list tickets (supports query filters)
 router.get('/tickets', getTickets);
 

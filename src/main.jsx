@@ -8,6 +8,8 @@ import clientLogger from './utils/clientLogger'
 // ensure axios sends cookies for all requests by default (session persistence)
 axios.defaults.withCredentials = true;
 
+// (DEV API key injection removed)
+
 // initialize client-side logger to send console/errors to backend
 try {
   clientLogger.init({ source: 'frontend' });

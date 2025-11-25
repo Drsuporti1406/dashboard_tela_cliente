@@ -4,6 +4,7 @@ const cors = require('cors');
 const cookieSession = require('cookie-session');
 const glpiAuthRoutes = require('./routes/glpiAuthRoutes');
 const dbRoutes = require('./routes/dbRoutes');
+const devBypassAuth = require('./middleware/devBypassAuth');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -69,9 +70,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Mount GLPI auth routes
+// Mount GLPI auth routes and DB helper routes
+// Development bypass middleware (no-op unless DEV_BYPASS_AUTH env var is set)
+app.use(devBypassAuth);
+
 app.use('/api/glpi', glpiAuthRoutes);
-// Mount simple DB helper routes
 app.use('/api/db', dbRoutes);
 
 app.get('/', (req, res) => {
@@ -79,6 +82,6 @@ app.get('/', (req, res) => {
 });
 // (debug route removed)
 
-app.listen(PORT, '127.0.0.1', () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Backend GLPI rodando na porta ${PORT}`);
 });
