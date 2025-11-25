@@ -20,8 +20,7 @@ function safeSerialize(obj) {
 }
 
 const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
-const _BASE_URL = import.meta.env.BASE_URL || '';
-const _BACKEND_PREFIX = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
+const _BACKEND_PREFIX = (_VITE_BACKEND || '').replace(/\/$/, '');
 
 function sendPayload(payload) {
   try {

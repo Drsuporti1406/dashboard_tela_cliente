@@ -95,6 +95,7 @@ async function getTickets(req, res) {
              COALESCE(NULLIF(cat.name, ''), '(sem categoria)') AS categoria_name,
              ts.satisfaction AS satisfaction,
              t.takeintoaccountdate AS takeintoaccountdate,
+             t.takeintoaccount_delay_stat AS takeintoaccount_delay_stat,
              t.solvedate AS solvedate,
              t.closedate AS closedate,
              TIMESTAMPDIFF(MINUTE, COALESCE(t.takeintoaccountdate, t.date), COALESCE(t.solvedate, t.closedate)) AS tempo_solucao_min,
@@ -170,7 +171,8 @@ async function getTickets(req, res) {
       categoria: r.categoria_name,
       categoria_id: r.itilcategories_id
       ,tempoSolucaoMin: (r.tempo_solucao_min !== null && r.tempo_solucao_min !== undefined) ? Number(r.tempo_solucao_min) : null
-      ,tmeMin: (r.tme_min !== null && r.tme_min !== undefined) ? Number(r.tme_min) : null
+      // Prefer GLPI's precomputed delay stat when available (stored in seconds), fall back to tme_min (minutes)
+      ,tmeMin: (r.takeintoaccount_delay_stat !== null && r.takeintoaccount_delay_stat !== undefined && Number(r.takeintoaccount_delay_stat) > 0) ? (Number(r.takeintoaccount_delay_stat) / 60) : null
       ,takeintoaccountdate: r.takeintoaccountdate ? r.takeintoaccountdate : null
       ,solvedate: r.solvedate ? r.solvedate : null
       ,closedate: r.closedate ? r.closedate : null

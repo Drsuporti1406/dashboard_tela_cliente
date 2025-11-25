@@ -47,8 +47,7 @@ export default function V5Report() {
   const chartsFetchId = useRef(0);
 
   const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
-  const _BASE_URL = import.meta.env.BASE_URL || '';
-  const BACKEND = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
+  const BACKEND = (_VITE_BACKEND || '').replace(/\/$/, '');
 
   // forward minimal client-side debug events to the backend for offline inspection
   const clientLog = async (obj) => {
@@ -1801,7 +1800,16 @@ export default function V5Report() {
               <tbody id="tbodyTickets">
                 {paginatedFiltered.slice().sort((a,b)=>new Date(b.dataRegistro)-new Date(a.dataRegistro)).map((t) => (
                   <tr key={t.id} onClick={() => openTicketModal(t)}>
-                    <td className="ticket-id">{t.id}</td>
+                    <td className="ticket-id">
+                      <a
+                        href={`https://app2.drsuporti.com.br/detalhamento/${t.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => { e.stopPropagation(); }}
+                      >
+                        {t.id}
+                      </a>
+                    </td>
                     <td>{formatDate(t.dataRegistro)}</td>
                     <td>{t.cliente || '-'}</td>
                     <td>{t.requerente || '-'}</td>

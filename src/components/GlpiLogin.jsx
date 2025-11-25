@@ -11,8 +11,7 @@ export default function GlpiLogin({ onSuccess }) {
   const [error, setError] = useState(null);
 
   const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
-  const _BASE_URL = import.meta.env.BASE_URL || '';
-  const BACKEND = (_VITE_BACKEND || _BASE_URL || '').replace(/\/$/, '');
+  const BACKEND = (_VITE_BACKEND || '').replace(/\/$/, '');
 
   const handleLogin = async (e) => {
     e.preventDefault();
