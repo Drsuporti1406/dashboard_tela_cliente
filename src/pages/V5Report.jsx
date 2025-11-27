@@ -47,7 +47,15 @@ export default function V5Report() {
   const chartsFetchId = useRef(0);
 
   const _VITE_BACKEND = import.meta.env.VITE_BACKEND_URL || '';
-  const BACKEND = (_VITE_BACKEND || '').replace(/\/$/, '');
+  // Resolve backend base path robustly:
+  // 1) Prefer explicit VITE_BACKEND_URL set at build time
+  // 2) Fallback to runtime detection: if the app is served under `/tela_cliente` use that
+  // 3) Otherwise use empty string (requests go to `/api/...` on same origin)
+  let BACKEND = (_VITE_BACKEND || '').replace(/\/$/, '');
+  if (!BACKEND && typeof window !== 'undefined' && window.location && window.location.pathname) {
+    const p = String(window.location.pathname || '');
+    if (p.startsWith('/tela_cliente')) BACKEND = '/tela_cliente';
+  }
 
   // forward minimal client-side debug events to the backend for offline inspection
   const clientLog = async (obj) => {
@@ -139,9 +147,20 @@ export default function V5Report() {
   };
 
   const formatDurationTmeFromTicket = (t) => {
+    // Prefer using precomputed `tmeMin` (derived from takeintoaccount_delay_stat)
+    // when available because it reflects measured waiting time (in minutes).
+    // Only fall back to timestamps (date -> takeintoaccountdate) when tmeMin is not present.
+    const minutes = (t && t.tmeMin !== null && t.tmeMin !== undefined && !isNaN(Number(t.tmeMin))) ? Number(t.tmeMin) : null;
+    if (minutes !== null) {
+      if (minutes < 1) return `${Math.round(minutes * 60)}s`;
+      if (minutes < 60) return `${Math.round(minutes)} min`;
+      return `${(minutes / 60).toFixed(1)}h`;
+    }
+
+    // fallback: derive from timestamp fields when numeric stat isn't present
     // start = ticket date, end = takeintoaccountdate (when attendance started)
-    const start = t.date || null;
-    const end = t.takeintoaccountdate || null;
+    const start = t && (t.date || null);
+    const end = t && (t.takeintoaccountdate || null);
     if (start && end) {
       const s = new Date(start).getTime();
       const e = new Date(end).getTime();
@@ -152,29 +171,11 @@ export default function V5Report() {
         return `${(secs / 3600).toFixed(1)}h`;
       }
     }
-    // fallback to tmeMin (minutes)
-    const minutes = (t.tmeMin !== null && t.tmeMin !== undefined) ? Number(t.tmeMin) : null;
-    if (minutes === null || isNaN(minutes)) return '-';
-    if (minutes < 1) return `${Math.round(minutes * 60)}s`;
-    if (minutes < 60) return `${Math.round(minutes)} min`;
-    return `${(minutes / 60).toFixed(1)}h`;
+    return '-';
   };
   const formatDurationFromTicket = (t) => {
-    // prefer precise timestamps when available
-    const start = t.takeintoaccountdate || t.date || null;
-    const end = t.solvedate || t.closedate || null;
-    if (start && end) {
-      const s = new Date(start).getTime();
-      const e = new Date(end).getTime();
-      if (!isNaN(s) && !isNaN(e) && e >= s) {
-        const secs = Math.round((e - s) / 1000);
-        if (secs < 60) return `${secs}s`;
-        if (secs < 3600) return `${Math.round(secs / 60)} min`;
-        return `${(secs / 3600).toFixed(1)}h`;
-      }
-    }
-    // fallback to provided minutes values (tempoSolucaoMin or tmaMin)
-    const minutes = (t.tempoSolucaoMin !== null && t.tempoSolucaoMin !== undefined) ? Number(t.tempoSolucaoMin) : (typeof t.tmaMin === 'number' ? Number(t.tmaMin) : null);
+    // Use EXCLUSIVELY solve_delay_stat (converted to tempoSolucaoMin in backend) - NO timestamp fallbacks
+    const minutes = (t.tempoSolucaoMin !== null && t.tempoSolucaoMin !== undefined) ? Number(t.tempoSolucaoMin) : null;
     if (minutes === null || isNaN(minutes)) return '-';
     if (minutes < 1) return `${Math.round(minutes * 60)}s`;
     if (minutes < 60) return `${Math.round(minutes)} min`;
@@ -303,16 +304,42 @@ export default function V5Report() {
       setAllTickets(arr);
     };
 
-    // fetch full list of entities (companies) once so the Cliente dropdown keeps all options
+    // fetch full list of entities (companies) - use user's permitted entities
+    // Priority: 1) GLPI session_token (from helpcentral), 2) email, 3) all entities fallback
     const fetchEntities = async () => {
       try {
-        const res = await axios.get(`${BACKEND}/api/db/entities`);
+        // Try to get user email from localStorage as secondary identifier
+        let userEmail = null;
+        try {
+          userEmail = localStorage.getItem('userEmail') || localStorage.getItem('user_email') || localStorage.getItem('email');
+        } catch (e) {}
+        
+        // Build URL with email parameter if available (session_token sent via cookie automatically)
+        const url = userEmail 
+          ? `${BACKEND}/api/db/my-entities?email=${encodeURIComponent(userEmail)}`
+          : `${BACKEND}/api/db/my-entities`;
+        
+        const res = await axios.get(url);
         if (res.data && res.data.success && Array.isArray(res.data.data)) {
           // keep parent relation (parent_id) to populate unidades when a company is selected
           setEmpresas(res.data.data.map((r) => ({ id: r.id, name: r.name, parent_id: r.parent_id || null })));
+          const source = res.data.source || 'unknown';
+          console.log(`Loaded ${res.data.data.length} permitted entities (source: ${source})`);
+          return;
         }
       } catch (err) {
-        console.error('Erro ao buscar entidades:', err?.message || err);
+        console.error('Erro ao buscar entidades do usuário:', err?.message || err);
+      }
+      
+      // Fallback to all entities if user-specific fetch fails
+      try {
+        console.warn('Usando fallback: buscando todas as entidades...');
+        const fallback = await axios.get(`${BACKEND}/api/db/entities`);
+        if (fallback.data && fallback.data.success && Array.isArray(fallback.data.data)) {
+          setEmpresas(fallback.data.data.map((r) => ({ id: r.id, name: r.name, parent_id: r.parent_id || null })));
+        }
+      } catch (fbErr) {
+        console.error('Erro ao buscar entidades (fallback):', fbErr);
       }
     };
     fetchEntities();

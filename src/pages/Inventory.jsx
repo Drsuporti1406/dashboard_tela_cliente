@@ -170,20 +170,48 @@ export default function Inventory() {
     ];
 
     ingestComputers(mockData);
-    // fetch GLPI entities to populate empresas/setores selects
+    // fetch GLPI entities to populate empresas/setores selects - use user's permitted entities based on email
     (async () => {
       try {
-        const resp = await fetch('/api/db/entities');
+        // Try to get user email from localStorage (set by helpcentral_front SSO)
+        let userEmail = null;
+        try {
+          userEmail = localStorage.getItem('userEmail') || localStorage.getItem('user_email') || localStorage.getItem('email');
+        } catch (e) {}
+        
+        // Build URL with email parameter if available
+        const url = userEmail 
+          ? `/api/db/my-entities?email=${encodeURIComponent(userEmail)}`
+          : '/api/db/my-entities';
+        
+        const resp = await fetch(url);
         const json = await resp.json();
         if (json && json.success && Array.isArray(json.data)) {
           const all = json.data;
           // top-level companies: parent_id === 0 or null
           const tops = all.filter(e => !e.parent_id || Number(e.parent_id) === 0).map(e => ({ id: e.id, name: e.name }));
           setState(prev => ({ ...prev, entities: all, empresasList: tops }));
+          if (userEmail) {
+            console.log(`Loaded ${json.data.length} permitted entities for user: ${userEmail}`);
+          }
+          return;
         }
       } catch (e) {
-        // ignore fetch errors for now
-        console.error('failed to fetch entities', e);
+        console.error('failed to fetch user entities', e);
+      }
+      
+      // Fallback to all entities
+      try {
+        console.warn('Using fallback: fetching all entities...');
+        const fallback = await fetch('/api/db/entities');
+        const fbJson = await fallback.json();
+        if (fbJson && fbJson.success && Array.isArray(fbJson.data)) {
+          const all = fbJson.data;
+          const tops = all.filter(e => !e.parent_id || Number(e.parent_id) === 0).map(e => ({ id: e.id, name: e.name }));
+          setState(prev => ({ ...prev, entities: all, empresasList: tops }));
+        }
+      } catch (fbErr) {
+        console.error('failed to fetch entities (fallback)', fbErr);
       }
     })();
   }, []);

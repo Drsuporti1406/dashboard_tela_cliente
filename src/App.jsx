@@ -120,7 +120,5 @@ export default function App() {
     }
   };
 
-  // dev-login removed
-
   return renderPage();
 }

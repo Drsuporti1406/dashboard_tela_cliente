@@ -1,11 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const { getAllEntities, getChildren } = require('../controllers/dbEntitiesController');
+const { getAllEntities, getMyEntities, getChildren } = require('../controllers/dbEntitiesController');
 const { getTickets, getNpsSummary, getTmaSummary, getTechnicians } = require('../controllers/dbTicketsController');
 const { getAllCategories } = require('../controllers/dbCategoriesController');
 
 // GET /api/db/entities -> all entities
 router.get('/entities', getAllEntities);
+
+// GET /api/db/my-entities -> entities the logged user has access to
+router.get('/my-entities', getMyEntities);
 
 // GET /api/db/entities/children/:parentId -> children of given parent
 router.get('/entities/children/:parentId', getChildren);

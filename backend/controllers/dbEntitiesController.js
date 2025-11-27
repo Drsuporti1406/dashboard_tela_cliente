@@ -22,6 +22,114 @@ async function getAllEntities(req, res) {
   }
 }
 
+// GET /api/db/my-entities?email=user@example.com - returns entities based on GLPI session or user email
+async function getMyEntities(req, res) {
+  try {
+    // PRIORITY 1: Try to use GLPI API session token (from helpcentral_front or direct login)
+    const { getMyEntities: fetchMyEntities } = require('../services/glpiClient');
+    const sess = req.session && req.session.glpi;
+    const token = sess && sess.session_token;
+    
+    if (token) {
+      try {
+        const glpiEntities = await fetchMyEntities(token);
+        const entityIds = glpiEntities.map(e => e.id);
+
+        if (entityIds.length > 0) {
+          const placeholders = entityIds.map(() => '?').join(',');
+          const [rows] = await pool.query(
+            `SELECT id, name, entities_id, completename FROM glpi_entities WHERE id IN (${placeholders}) ORDER BY name`,
+            entityIds
+          );
+          const mapped = rows.map((r) => ({ id: r.id, name: r.name, parent_id: r.entities_id, completename: r.completename }));
+          return res.json({ success: true, data: mapped, source: 'glpi_api_token' });
+        }
+      } catch (apiErr) {
+        console.warn('Failed to fetch entities via GLPI API, trying email fallback:', apiErr.message);
+        // Continue to email-based lookup
+      }
+    }
+    
+    // PRIORITY 2: Fallback to email-based lookup (when no valid session token)
+    const userEmail = req.query.email || (req.session && req.session.userEmail);
+    
+    if (!userEmail) {
+      return res.status(401).json({ success: false, message: 'Not authenticated - no session token or email provided', requireLogin: true });
+    }
+
+    // NEW: Fetch entities based on user email from database
+    // 1. Find user by email in glpi_users
+    const [users] = await pool.query(
+      'SELECT id FROM glpi_users WHERE LOWER(TRIM(emails_id)) = LOWER(TRIM(?)) OR LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1',
+      [userEmail, userEmail.split('@')[0]] // try email or username part before @
+    );
+
+    if (!users || users.length === 0) {
+      console.warn(`User not found in GLPI for email: ${userEmail}`);
+      return res.json({ success: true, data: [], message: 'User not found in GLPI' });
+    }
+
+    const userId = users[0].id;
+
+    // 2. Get user's profile and entities from glpi_profiles_users
+    const [profiles] = await pool.query(
+      `SELECT DISTINCT entities_id, is_recursive FROM glpi_profiles_users WHERE users_id = ?`,
+      [userId]
+    );
+
+    if (!profiles || profiles.length === 0) {
+      console.warn(`No profiles found for user ${userId}`);
+      return res.json({ success: true, data: [], message: 'No profiles found for user' });
+    }
+
+    // 3. Build entity list (including recursive children)
+    const entityIds = new Set();
+    
+    for (const profile of profiles) {
+      entityIds.add(profile.entities_id);
+      
+      // If recursive, get all child entities
+      if (profile.is_recursive === 1) {
+        const [children] = await pool.query(
+          `WITH RECURSIVE entity_tree AS (
+            SELECT id, entities_id FROM glpi_entities WHERE entities_id = ?
+            UNION ALL
+            SELECT e.id, e.entities_id FROM glpi_entities e
+            INNER JOIN entity_tree et ON e.entities_id = et.id
+          )
+          SELECT id FROM entity_tree`,
+          [profile.entities_id]
+        );
+        children.forEach(c => entityIds.add(c.id));
+      }
+    }
+
+    const entityIdArray = Array.from(entityIds);
+    
+    if (entityIdArray.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+    // 4. Fetch entity details
+    const placeholders = entityIdArray.map(() => '?').join(',');
+    const [rows] = await pool.query(
+      `SELECT id, name, entities_id, completename FROM glpi_entities WHERE id IN (${placeholders}) ORDER BY name`,
+      entityIdArray
+    );
+    
+    const mapped = rows.map((r) => ({ id: r.id, name: r.name, parent_id: r.entities_id, completename: r.completename }));
+    return res.json({ success: true, data: mapped, userEmail, userId });
+    
+  } catch (err) {
+    console.error('dbEntities.getMyEntities error', err);
+    // Check if error is 401 from GLPI API (invalid/expired token)
+    if (err.message && err.message.includes('401')) {
+      return res.status(401).json({ success: false, message: 'Session expired or invalid', requireLogin: true });
+    }
+    return res.status(500).json({ success: false, message: err.message || 'failed to query user entities' });
+  }
+}
+
 async function getChildren(req, res) {
   const parentId = req.params.parentId;
   if (!parentId) return res.status(400).json({ success: false, message: 'parentId required' });
@@ -72,7 +180,7 @@ async function getComputersByEntity(req, res) {
 }
 
 // export functions
-module.exports = { getAllEntities, getChildren, getComputersByEntity, getComputersCount, searchComputersByName };
+module.exports = { getAllEntities, getMyEntities, getChildren, getComputersByEntity, getComputersCount, searchComputersByName };
 
 async function searchComputersByName(req, res) {
   const name = (req.query.name || '').trim();

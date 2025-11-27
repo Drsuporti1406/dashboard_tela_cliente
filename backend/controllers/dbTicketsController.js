@@ -96,10 +96,9 @@ async function getTickets(req, res) {
              ts.satisfaction AS satisfaction,
              t.takeintoaccountdate AS takeintoaccountdate,
              t.takeintoaccount_delay_stat AS takeintoaccount_delay_stat,
+             t.solve_delay_stat AS solve_delay_stat,
              t.solvedate AS solvedate,
              t.closedate AS closedate,
-             TIMESTAMPDIFF(MINUTE, COALESCE(t.takeintoaccountdate, t.date), COALESCE(t.solvedate, t.closedate)) AS tempo_solucao_min,
-             TIMESTAMPDIFF(MINUTE, t.date, t.takeintoaccountdate) AS tme_min,
              (
                SELECT TRIM(COALESCE(NULLIF(COALESCE(u.realname, ''), ''), COALESCE(u.name, '')))
                FROM glpi_tickets_users tu
@@ -170,8 +169,9 @@ async function getTickets(req, res) {
       notaNps: typeof r.satisfaction === 'number' ? r.satisfaction : (r.satisfaction ? Number(r.satisfaction) : null),
       categoria: r.categoria_name,
       categoria_id: r.itilcategories_id
-      ,tempoSolucaoMin: (r.tempo_solucao_min !== null && r.tempo_solucao_min !== undefined) ? Number(r.tempo_solucao_min) : null
-      // Prefer GLPI's precomputed delay stat when available (stored in seconds), fall back to tme_min (minutes)
+      // Use EXCLUSIVELY solve_delay_stat (seconds) for TMA - no fallbacks
+      ,tempoSolucaoMin: (r.solve_delay_stat !== null && r.solve_delay_stat !== undefined && Number(r.solve_delay_stat) > 0) ? (Number(r.solve_delay_stat) / 60) : null
+      // Use EXCLUSIVELY takeintoaccount_delay_stat (seconds) for TME - no fallbacks
       ,tmeMin: (r.takeintoaccount_delay_stat !== null && r.takeintoaccount_delay_stat !== undefined && Number(r.takeintoaccount_delay_stat) > 0) ? (Number(r.takeintoaccount_delay_stat) / 60) : null
       ,takeintoaccountdate: r.takeintoaccountdate ? r.takeintoaccountdate : null
       ,solvedate: r.solvedate ? r.solvedate : null
@@ -460,15 +460,15 @@ async function getTmaSummary(req, res) {
       }
     }
 
-    // only tickets that have a solved/close timestamp
-    where.push('COALESCE(t.solvedate, t.closedate) IS NOT NULL');
+    // only tickets that have solve_delay_stat computed (GLPI's precomputed statistic)
+    where.push('t.solve_delay_stat IS NOT NULL AND t.solve_delay_stat > 0');
 
     const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
     const sql = `
       SELECT
         COUNT(*) AS solved_count,
-        AVG(TIMESTAMPDIFF(MINUTE, COALESCE(t.takeintoaccountdate, t.date), COALESCE(t.solvedate, t.closedate))) AS avg_tma_minutes
+        AVG(t.solve_delay_stat / 60.0) AS avg_tma_minutes
       FROM glpi_tickets t
       LEFT JOIN glpi_entities e ON e.id = t.entities_id
       LEFT JOIN glpi_entities parent ON parent.id = e.entities_id

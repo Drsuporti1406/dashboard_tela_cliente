@@ -44,4 +44,31 @@ async function killSession(sessionToken) {
   }
 }
 
-module.exports = { loginWithCredentials, killSession };
+// GET /getFullSession - returns user profile and active entities
+async function getUserProfile(sessionToken) {
+  assertConfig();
+  if (!sessionToken) throw new Error('session token required');
+  const url = `${BASE_URL.replace(/\/$/, '')}/getFullSession`;
+  try {
+    const resp = await axios.get(url, { headers: { 'App-Token': APP_TOKEN, 'Session-Token': sessionToken } });
+    return resp.data;
+  } catch (err) {
+    throw new Error(`Failed to get user profile: ${err.message}`);
+  }
+}
+
+// GET /getMyEntities - returns entities the logged user has access to
+async function getMyEntities(sessionToken) {
+  assertConfig();
+  if (!sessionToken) throw new Error('session token required');
+  const url = `${BASE_URL.replace(/\/$/, '')}/getMyEntities`;
+  try {
+    const resp = await axios.get(url, { headers: { 'App-Token': APP_TOKEN, 'Session-Token': sessionToken }, params: { is_recursive: true } });
+    // Response format: { "myentities": [ {"id": 1, "name": "...", ...}, ... ] }
+    return resp.data?.myentities || [];
+  } catch (err) {
+    throw new Error(`Failed to get user entities: ${err.message}`);
+  }
+}
+
+module.exports = { loginWithCredentials, killSession, getUserProfile, getMyEntities };
