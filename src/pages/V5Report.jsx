@@ -261,16 +261,27 @@ export default function V5Report() {
   };
 
   // helper: map ticket object to simple status key: 'play' | 'pause' | 'check'
+  // GLPI status: 1=New, 2=Assigned(Atribuído), 3=Planning, 4=Pending, 5=Solved, 6=Closed
   const ticketStatusClass = (ticket) => {
     try {
       if (!ticket) return 'pause';
       const st = ticket.status;
       const label = (ticket.statusLabel || '').toString().toLowerCase();
-      if (typeof st === 'number' && st >= 5) return 'check';
+      
+      // Check numeric status first (most reliable)
+      if (typeof st === 'number') {
+        if (st === 5 || st === 6) return 'check'; // Solved or Closed
+        if (st === 4) return 'pause'; // Pending
+        if (st === 3 || (st === 2 && ticket.takeintoaccountdate)) return 'play'; // Planning or Assigned+taken
+        return 'pause'; // New (1) or other
+      }
+      
+      // Fallback to label-based detection
       if (label.indexOf('fechado') !== -1 || label.indexOf('resolvid') !== -1 || label.indexOf('solucionad') !== -1) return 'check';
       if (label.indexOf('pend') !== -1) return 'pause';
-      if (label.indexOf('atend') !== -1 || label.indexOf('em atendimento') !== -1) return 'play';
-      // fallback: if technician has taken the ticket, consider 'em atendimento'
+      if (label.indexOf('atend') !== -1 || label.indexOf('planej') !== -1) return 'play';
+      
+      // Final fallback: if technician has taken the ticket, consider 'em atendimento'
       if (ticket.takeintoaccountdate) return 'play';
       return 'pause';
     } catch (e) {
@@ -1638,12 +1649,22 @@ export default function V5Report() {
                       let statusClass = 'tag-open';
                       if (!rawLabel) {
                         // derive from numeric status or fields
+                        // GLPI status: 1=New, 2=Assigned, 3=Planning, 4=Pending, 5=Solved, 6=Closed
                         if (typeof ticketModalTicket.status === 'number') {
-                          if (ticketModalTicket.status >= 5) {
-                            statusLabel = 'Encerrado';
+                          if (ticketModalTicket.status === 6) {
+                            statusLabel = 'Fechado';
                             statusClass = 'tag-check';
+                          } else if (ticketModalTicket.status === 5) {
+                            statusLabel = 'Resolvido';
+                            statusClass = 'tag-check';
+                          } else if (ticketModalTicket.status === 4) {
+                            statusLabel = 'Pendente';
+                            statusClass = 'tag-pause';
+                          } else if (ticketModalTicket.status === 3 || (ticketModalTicket.status === 2 && ticketModalTicket.takeintoaccountdate)) {
+                            statusLabel = 'Em atendimento';
+                            statusClass = 'tag-play';
                           } else {
-                            statusLabel = 'Aberto';
+                            statusLabel = 'Novo';
                             statusClass = 'tag-open';
                           }
                         } else if (ticketModalTicket.takeintoaccountdate) {
@@ -1655,9 +1676,9 @@ export default function V5Report() {
                         }
                       } else {
                         const ll = String(rawLabel).toLowerCase();
-                        if (ll.indexOf('abert') !== -1) statusClass = 'tag-open';
+                        if (ll.indexOf('abert') !== -1 || ll.indexOf('nov') !== -1) statusClass = 'tag-open';
                         else if (ll.indexOf('pend') !== -1) statusClass = 'tag-pause';
-                        else if (ll.indexOf('atend') !== -1) statusClass = 'tag-play';
+                        else if (ll.indexOf('atend') !== -1 || ll.indexOf('planej') !== -1 || ll.indexOf('planning') !== -1) statusClass = 'tag-play';
                         else if (ll.indexOf('fech') !== -1 || ll.indexOf('encerr') !== -1 || ll.indexOf('resolvid') !== -1 || ll.indexOf('solucionad') !== -1) statusClass = 'tag-check';
                         else statusClass = 'tag-open';
                       }
