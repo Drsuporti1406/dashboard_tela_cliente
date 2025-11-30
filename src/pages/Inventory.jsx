@@ -822,15 +822,7 @@ export default function Inventory() {
         </div>
         <div className="inv-header-right">
           <div className="inv-filters">
-            <div className="inv-filter">
-              <span>Severidade</span>
-              <select value={state.filtros.sev} onChange={(e) => setState(prev => ({ ...prev, filtros: { ...prev.filtros, sev: e.target.value } }))}>
-                <option value="all">Todos</option>
-                <option value="crit">Crítico (Substituir)</option>
-                <option value="warn">Atenção (Upgrade)</option>
-                <option value="ok">OK (Conforme)</option>
-              </select>
-            </div>
+            {/* Severidade filter removed as requested */}
             <div className="inv-filter">
               <span>Empresa</span>
               <select value={state.filtros.empresa} onChange={(e) => setState(prev => ({ ...prev, filtros: { ...prev.filtros, empresa: e.target.value, setor: 'all' } }))}>
