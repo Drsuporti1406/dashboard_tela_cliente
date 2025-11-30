@@ -86,6 +86,10 @@ async function getTickets(req, res) {
         params.push(...techs);
       }
     }
+    
+      // Default: only include tickets in active/working statuses (3,4,5,6)
+      // This enforces that ticket list and related summaries consider only these statuses
+      where.push('t.status IN (3,4,5,6)');
 
     const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
     // main select with entity name, parent name, category name and requester (requerente)
@@ -373,6 +377,9 @@ async function getNpsSummary(req, res) {
 
     // require satisfaction to be present
     where.push("ts.satisfaction IS NOT NULL AND TRIM(ts.satisfaction) <> ''");
+    
+      // Default: only include tickets in active/working statuses (3,4,5,6)
+      where.push('t.status IN (3,4,5,6)');
 
     const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
@@ -462,6 +469,9 @@ async function getTmaSummary(req, res) {
 
     // only tickets that have solve_delay_stat computed (GLPI's precomputed statistic)
     where.push('t.solve_delay_stat IS NOT NULL AND t.solve_delay_stat > 0');
+
+    // Default: only include tickets in active/working statuses (3,4,5,6)
+    where.push('t.status IN (3,4,5,6)');
 
     const whereSql = where.length ? ('WHERE ' + where.join(' AND ')) : '';
 
